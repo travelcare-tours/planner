@@ -153,7 +153,7 @@ export const PdfTemplate: React.FC<PdfTemplateProps> = ({ trip }) => {
     if (!isUpiEligible) return;
     let isMounted = true;
     QRCode.toDataURL(upiPayLink, {
-      width: 320,
+      width: 500,
       margin: 1,
       color: { dark: '#064e3b', light: '#ffffff' },
     })

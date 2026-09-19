@@ -1206,7 +1206,6 @@ ${hotelLines}
                     onChange={(e) => onUpdateTrip({ ...trip, pickupLocation: e.target.value })}
                     className="w-full h-10 sm:h-11 text-xs sm:text-sm px-3.5 border border-emerald-400 bg-emerald-50/40 rounded-xl font-medium text-slate-800 focus:bg-white focus:ring-2 focus:ring-emerald-600 focus:outline-hidden shadow-2xs"
                     placeholder="Enter custom pickup hotel / airport / station name..."
-                    autoFocus
                   />
                 </div>
               )}
@@ -1293,7 +1292,6 @@ ${hotelLines}
                     onChange={(e) => onUpdateTrip({ ...trip, dropoffLocation: e.target.value })}
                     className="w-full h-10 sm:h-11 text-xs sm:text-sm px-3.5 border border-teal-400 bg-teal-50/40 rounded-xl font-medium text-slate-800 focus:bg-white focus:ring-2 focus:ring-teal-600 focus:outline-hidden shadow-2xs"
                     placeholder="Enter custom drop-off hotel / airport / station name..."
-                    autoFocus
                   />
                 </div>
               )}
