@@ -1,0 +1,6 @@
+{
+  "name": "Travel Care Tours - Itinerary Planner",
+  "description": "Professional multi-page PDF itinerary generator with customizable activities, accommodation tables, and Kerala travel design.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
