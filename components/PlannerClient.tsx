@@ -55,8 +55,6 @@ import {
   Palmtree,
   ArrowRight
 } from 'lucide-react';
-import jsPDF from 'jspdf';
-import html2canvas from 'html2canvas-pro';
 
 export interface PlannerClientProps {
   initialTab?: 'whatsapp-leads' | 'editor' | 'activities' | 'catalog' | 'preview' | 'docs';
@@ -235,78 +233,33 @@ export function PlannerClient({ initialTab = 'whatsapp-leads' }: PlannerClientPr
     }
   };
 
-  // High-Resolution Native Browser Print / Save as PDF
+  const previewScrollContainerRef = useRef<HTMLDivElement>(null);
+
+  // High-Resolution Native Browser Print / Save as PDF (Vector 300+ DPI)
   const triggerNativePrint = () => {
     window.print();
   };
 
-  // Direct PDF File Download using html2canvas & jsPDF with exact A4 proportions
-  const downloadPdfFile = async () => {
-    if (!printRef.current) return;
-    setIsExportingPdf(true);
+  // Direct PDF Download / Save action - invokes browser vector PDF engine
+  const downloadPdfFile = () => {
+    window.print();
+  };
 
-    try {
-      // Find all page containers
-      const pageElements = printRef.current.querySelectorAll('.pdf-page-container');
-      const pdf = new jsPDF({
-        orientation: 'portrait',
-        unit: 'mm',
-        format: 'a4',
-      });
-
-      for (let i = 0; i < pageElements.length; i++) {
-        const pageEl = pageElements[i] as HTMLElement;
-        const canvas = await html2canvas(pageEl, {
-          scale: 3, // 300 PPI high-definition print resolution
-          useCORS: true,
-          logging: false,
-          backgroundColor: '#ffffff',
-          windowWidth: 1200,
-          onclone: (clonedDoc) => {
-            // Remove zoom transform on all cloned containers to prevent distorted scales
-            const transformedEls = clonedDoc.querySelectorAll('[style*="transform"]');
-            transformedEls.forEach((el) => {
-              (el as HTMLElement).style.transform = 'none';
-            });
-
-            // Ensure cloned page containers strictly adhere to A4 dimensions (794px width)
-            const clonedPages = clonedDoc.querySelectorAll('.pdf-page-container');
-            clonedPages.forEach((p) => {
-              const htmlP = p as HTMLElement;
-              htmlP.style.width = '210mm';
-              htmlP.style.maxWidth = '210mm';
-              htmlP.style.minHeight = '297mm';
-              htmlP.style.maxHeight = '297mm';
-              htmlP.style.height = '297mm';
-              htmlP.style.aspectRatio = '1 / 1.414';
-              htmlP.style.objectFit = 'contain';
-              htmlP.style.boxSizing = 'border-box';
-              htmlP.style.overflow = 'hidden';
-              htmlP.style.transform = 'none';
-            });
-          },
-        });
-
-        const imgData = canvas.toDataURL('image/jpeg', 0.85); // High quality 300 PPI with optimized file size
-        if (i > 0) pdf.addPage('a4', 'portrait');
-
-        // A4 standard: 210 x 297 mm - Maintain exact aspect ratio
-        const pageWidth = 210;
-        const pageHeight = 297;
-        const imgHeight = (canvas.height * pageWidth) / canvas.width;
-
-        // Render cleanly within the A4 boundary without distortion
-        pdf.addImage(imgData, 'JPEG', 0, 0, pageWidth, Math.min(pageHeight, imgHeight), undefined, 'FAST');
-      }
-
-      pdf.save(`TravelCareTours_Itinerary_${trip.voucherNumber || 'TCT-2026-Q0196'}.pdf`);
-    } catch (err) {
-      console.error('PDF export error:', err);
-      // Fallback to native print if html2canvas meets canvas limitations
-      window.print();
-    } finally {
-      setIsExportingPdf(false);
+  const handleFitWidth = () => {
+    if (!previewScrollContainerRef.current) {
+      setPdfZoom(100);
+      return;
     }
+    // A4 width in standard screen pixels is approx 794px
+    const containerWidth = previewScrollContainerRef.current.clientWidth - 32;
+    const calculatedZoom = Math.min(160, Math.max(30, Math.round((containerWidth / 794) * 100)));
+    setPdfZoom(calculatedZoom);
+  };
+
+  const handleFitHeight = () => {
+    const availableHeight = typeof window !== 'undefined' ? window.innerHeight - 200 : 800;
+    const calculatedZoom = Math.min(130, Math.max(30, Math.round((availableHeight / 1123) * 100)));
+    setPdfZoom(calculatedZoom);
   };
 
   // WhatsApp formatted string generator
@@ -419,80 +372,90 @@ ${trip.days.map((d) => `*Day ${d.dayNumber} (${d.destination}):* ${d.activities.
                 </div>
               </div>
 
-              {/* Action Buttons */}
-              <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-between sm:justify-end">
-                {/* Zoom controls - hidden on mobile (native pinch-to-zoom), enabled on desktop */}
-                <div className="hidden sm:flex items-center bg-slate-100 rounded-lg p-0.5 border border-slate-200 text-xs">
+              {/* Action Buttons & Responsive Zoom Toolbar */}
+              <div className="flex flex-wrap items-center gap-2.5 w-full sm:w-auto justify-between sm:justify-end">
+                {/* Modern Zoom Controls: Fit Width, Fit Height, -, %, + */}
+                <div className="flex items-center bg-slate-100 rounded-xl p-1 border border-slate-200 shadow-2xs gap-1">
                   <button
-                    onClick={() => setPdfZoom(Math.max(40, pdfZoom - 10))}
-                    className="p-1.5 text-slate-600 hover:text-slate-900 rounded"
-                    title="Zoom Out"
+                    type="button"
+                    onClick={handleFitWidth}
+                    className="px-2 sm:px-2.5 py-1 text-[11px] font-bold text-slate-700 hover:text-emerald-950 hover:bg-white rounded-lg transition-all border border-transparent hover:border-slate-200 shadow-2xs cursor-pointer"
+                    title="Fit page to preview width"
+                  >
+                    Fit Width
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleFitHeight}
+                    className="px-2 sm:px-2.5 py-1 text-[11px] font-bold text-slate-700 hover:text-emerald-950 hover:bg-white rounded-lg transition-all border border-transparent hover:border-slate-200 shadow-2xs cursor-pointer"
+                    title="Fit full A4 page to screen height"
+                  >
+                    Fit Height
+                  </button>
+                  <div className="h-4 w-[1px] bg-slate-300 mx-0.5" />
+                  <button
+                    type="button"
+                    onClick={() => setPdfZoom((prev) => Math.max(30, prev - 10))}
+                    className="p-1.5 text-slate-700 hover:text-slate-950 hover:bg-white rounded-lg transition-all cursor-pointer"
+                    title="Zoom Out (-10%)"
                   >
                     <ZoomOut className="w-3.5 h-3.5" />
                   </button>
-                  <span className="px-1.5 sm:px-2 font-mono text-[11px] text-slate-700 font-bold">{pdfZoom}%</span>
+                  <span className="px-1.5 font-mono text-[11px] text-slate-800 font-extrabold select-none min-w-[40px] text-center">
+                    {pdfZoom}%
+                  </span>
                   <button
-                    onClick={() => setPdfZoom(Math.min(130, pdfZoom + 10))}
-                    className="p-1.5 text-slate-600 hover:text-slate-900 rounded"
-                    title="Zoom In"
+                    type="button"
+                    onClick={() => setPdfZoom((prev) => Math.min(180, prev + 10))}
+                    className="p-1.5 text-slate-700 hover:text-slate-950 hover:bg-white rounded-lg transition-all cursor-pointer"
+                    title="Zoom In (+10%)"
                   >
                     <ZoomIn className="w-3.5 h-3.5" />
                   </button>
                 </div>
 
-                <div className="flex items-center gap-2 flex-wrap">
+                <div className="flex items-center gap-2">
                   <button
                     id="btn-preview-whatsapp"
+                    type="button"
                     onClick={() => setShowWhatsAppModal(true)}
-                    className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg transition-colors"
+                    className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-xl transition-colors cursor-pointer"
                   >
                     <Share2 className="w-3.5 h-3.5" />
-                    <span>WhatsApp</span>
+                    <span className="hidden sm:inline">WhatsApp</span>
                   </button>
 
                   <button
                     id="btn-download-pdf-file"
-                    onClick={downloadPdfFile}
-                    disabled={isExportingPdf}
-                    className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-emerald-900 bg-emerald-100 hover:bg-emerald-200 border border-emerald-300 rounded-lg transition-colors"
-                  >
-                    {isExportingPdf ? (
-                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                    ) : (
-                      <Download className="w-3.5 h-3.5 text-emerald-800" />
-                    )}
-                    <span>{isExportingPdf ? 'Exporting...' : 'PDF'}</span>
-                  </button>
-
-                  <button
-                    id="btn-print-native-pdf"
+                    type="button"
                     onClick={triggerNativePrint}
-                    className="flex items-center gap-2 px-3.5 sm:px-5 py-2 text-xs font-bold text-white bg-gradient-to-r from-emerald-800 to-teal-800 hover:from-emerald-900 hover:to-teal-900 rounded-lg shadow-md transition-all hover:scale-[1.02]"
+                    className="flex items-center gap-2 px-3.5 sm:px-5 py-2 text-xs font-bold text-white bg-gradient-to-r from-emerald-800 to-teal-800 hover:from-emerald-900 hover:to-teal-900 rounded-xl shadow-md transition-all hover:scale-[1.02] cursor-pointer"
+                    title="Download / Save as PDF (Vector 300+ DPI)"
                   >
                     <Printer className="w-4 h-4 text-emerald-200" />
-                    <span className="hidden sm:inline">Print / Save as PDF (Vector HD)</span>
-                    <span className="sm:hidden">Print PDF</span>
+                    <span>Download / Print PDF (300 DPI Vector)</span>
                   </button>
                 </div>
               </div>
             </div>
 
             {/* Live Document Canvas */}
-            <div className="w-full overflow-x-auto py-4 px-1 sm:px-4 print:py-0 print:px-0 print:overflow-visible">
-              <div className="min-w-fit flex justify-start md:justify-center mx-auto">
-                <div 
-                  ref={printRef}
-                  id="pdf-template-wrapper"
-                  style={{ 
-                    transform: `scale(${pdfZoom / 100})`, 
-                    transformOrigin: 'top left',
-                    width: '210mm',
-                    minWidth: '210mm',
-                  }}
-                  className="pdf-template-container transition-transform duration-150 py-2 print:py-0 print:transform-none shrink-0"
-                >
-                  <PdfTemplate trip={trip} />
-                </div>
+            <div 
+              ref={previewScrollContainerRef}
+              className="w-full overflow-x-auto py-6 px-1 sm:px-4 print:py-0 print:px-0 print:overflow-visible flex justify-center"
+            >
+              <div 
+                ref={printRef}
+                id="pdf-template-wrapper"
+                style={{ 
+                  transform: `scale(${pdfZoom / 100})`, 
+                  transformOrigin: 'top center',
+                  width: '210mm',
+                  minWidth: '210mm',
+                }}
+                className="pdf-template-container transition-transform duration-150 py-2 print:py-0 print:transform-none shrink-0"
+              >
+                <PdfTemplate trip={trip} />
               </div>
             </div>
           </div>

@@ -43,7 +43,6 @@ import { TripDetails, AccommodationItem, DayItinerary } from '@/types/itinerary'
 import { INITIAL_DESTINATIONS_CATALOG } from '@/lib/sample-data';
 import { generateFallbackTitles } from '@/lib/title-generator';
 import DatePicker, { parseDateSafe } from '@/components/DatePicker';
-import { PREFERRED_STAY_HUBS } from '@/components/WhatsappLeadsView';
 
 interface TripDetailsFormProps {
   trip: TripDetails;
@@ -1899,38 +1898,6 @@ export const TripDetailsForm: React.FC<TripDetailsFormProps> = ({
                     Stay Locations ({trip.accommodations.length} Overnight Stays • {trip.durationNights} Nights)
                   </span>
                 </div>
-                <span className="text-[10px] sm:text-[11px] font-bold text-emerald-800 bg-emerald-100/90 px-2.5 py-0.5 rounded-full border border-emerald-200">
-                  Auto-suggested preferred stay locations
-                </span>
-              </div>
-
-              {/* Sequential Stay Badges with Preferred Hubs */}
-              <div className="flex flex-wrap items-center gap-2 pt-0.5">
-                {trip.accommodations.map((acc, idx) => {
-                  const pref = PREFERRED_STAY_HUBS[acc.destination] || {
-                    hub: 'Central District / Tourist Hub',
-                    highlight: 'Scenic & accessible',
-                  };
-                  return (
-                    <div
-                      key={`stay-hub-${acc.id || idx}`}
-                      className="flex items-center gap-2 bg-white border border-emerald-200/90 rounded-lg px-2.5 py-1.5 shadow-2xs text-[11px]"
-                    >
-                      <span className="font-mono font-bold text-emerald-950 bg-emerald-100 px-1.5 py-0.5 rounded text-[10px]">
-                        Stop {idx + 1}
-                      </span>
-                      <div className="flex flex-col">
-                        <div className="flex items-center gap-1">
-                          <strong className="text-slate-900 font-bold">{acc.destination}</strong>
-                          <span className="text-emerald-800 font-bold">({acc.nights || 1}N)</span>
-                        </div>
-                        <span className="text-[10px] text-slate-500">
-                          Preferred: <span className="font-semibold text-emerald-900">{pref.hub}</span>
-                        </span>
-                      </div>
-                    </div>
-                  );
-                })}
               </div>
             </div>
 

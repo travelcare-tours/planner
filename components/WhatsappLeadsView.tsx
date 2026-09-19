@@ -960,21 +960,21 @@ ${hotelLines}
           </div>
 
           {/* Requirement 2: Quote code in serial for cross checking */}
-          <div className="flex items-center gap-2 bg-slate-50/90 px-3 py-1.5 rounded-xl border border-slate-200 shadow-2xs w-full sm:w-auto justify-between sm:justify-start">
-            <span className="text-xs text-slate-500 font-bold uppercase tracking-wider">Quote Ref:</span>
+          <div className="flex items-center gap-1.5 sm:gap-2 bg-slate-50/90 px-2.5 sm:px-3 py-1.5 rounded-xl border border-slate-200 shadow-2xs w-full sm:w-auto">
+            <span className="text-[11px] sm:text-xs text-slate-500 font-bold uppercase tracking-wider shrink-0">Quote Ref:</span>
             <input
               type="text"
               value={trip.voucherNumber || 'TCT-2026-Q0196'}
               onChange={(e) => onUpdateTrip({ ...trip, voucherNumber: e.target.value })}
-              className="h-11 sm:h-12 px-3 rounded-xl bg-white font-mono font-black text-sm text-emerald-950 border border-slate-300 w-32 sm:w-40 text-center focus:ring-2 focus:ring-[#0B2545] focus:outline-hidden shadow-2xs"
+              className="h-10 sm:h-12 px-2 sm:px-3 rounded-xl bg-white font-mono font-black text-xs sm:text-sm text-emerald-950 border border-slate-300 flex-1 sm:w-44 text-center focus:ring-2 focus:ring-[#0B2545] focus:outline-hidden shadow-2xs min-w-0"
             />
             <button
               type="button"
               onClick={handleNextSerialCode}
-              className="h-11 sm:h-12 px-3 sm:px-4 bg-emerald-50 hover:bg-emerald-100 active:bg-emerald-200 border border-emerald-300 text-emerald-900 rounded-xl text-xs sm:text-sm font-bold transition-all shadow-2xs whitespace-nowrap flex items-center justify-center"
-              title="Generate next serial quote code (increments sequence)"
+              className="h-10 sm:h-12 w-10 sm:w-11 bg-emerald-700 hover:bg-emerald-800 active:bg-emerald-900 text-white rounded-xl text-lg font-bold transition-all shadow-2xs shrink-0 flex items-center justify-center cursor-pointer"
+              title="Next Serial (+1)"
             >
-              + Next Serial
+              +
             </button>
           </div>
         </div>
@@ -1516,38 +1516,6 @@ ${hotelLines}
                 Stay Locations ({trip.accommodations.length} Overnight Stays • {trip.durationNights} Nights)
               </span>
             </div>
-            <span className="text-[10px] sm:text-[11px] font-bold text-emerald-800 bg-emerald-100/90 px-2.5 py-0.5 rounded-full border border-emerald-200">
-              Auto-suggested preferred stay locations
-            </span>
-          </div>
-
-          {/* Sequential Stay Badges with Preferred Hubs */}
-          <div className="flex flex-wrap items-center gap-2 pt-0.5">
-            {trip.accommodations.map((acc, idx) => {
-              const pref = PREFERRED_STAY_HUBS[acc.destination] || {
-                hub: 'Central District / Tourist Hub',
-                highlight: 'Scenic & accessible',
-              };
-              return (
-                <div
-                  key={`stay-hub-${acc.id || idx}`}
-                  className="flex items-center gap-2 bg-white border border-emerald-200/90 rounded-lg px-2.5 py-1.5 shadow-2xs text-[11px]"
-                >
-                  <span className="font-mono font-bold text-emerald-950 bg-emerald-100 px-1.5 py-0.5 rounded text-[10px]">
-                    Stop {idx + 1}
-                  </span>
-                  <div className="flex flex-col">
-                    <div className="flex items-center gap-1">
-                      <strong className="text-slate-900 font-bold">{acc.destination}</strong>
-                      <span className="text-emerald-800 font-bold">({acc.nights || 1}N)</span>
-                    </div>
-                    <span className="text-[10px] text-slate-500">
-                      Preferred: <span className="font-semibold text-emerald-900">{pref.hub}</span>
-                    </span>
-                  </div>
-                </div>
-              );
-            })}
           </div>
         </div>
 
@@ -1620,7 +1588,7 @@ ${hotelLines}
                       </td>
                     )}
 
-                    {/* Destination & Preferred Stay Hub */}
+                    {/* Destination */}
                     <td className="py-2.5 px-3 font-extrabold text-slate-900">
                       <input
                         type="text"
@@ -1628,11 +1596,6 @@ ${hotelLines}
                         onChange={(e) => handleUpdateHotelRow(index, 'destination', e.target.value)}
                         className="w-full bg-transparent border-0 font-extrabold text-slate-900 focus:outline-hidden focus:bg-white focus:ring-1 focus:ring-slate-300 rounded px-1.5 py-0.5"
                       />
-                      {PREFERRED_STAY_HUBS[acc.destination] && (
-                        <div className="text-[10px] text-emerald-800 font-semibold px-1.5 truncate" title={PREFERRED_STAY_HUBS[acc.destination].hub}>
-                          📍 {PREFERRED_STAY_HUBS[acc.destination].hub.split('/')[0].trim()}
-                        </div>
-                      )}
                     </td>
 
                     {/* Hotel Name */}
