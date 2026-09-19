@@ -23,6 +23,7 @@ import {
   X
 } from 'lucide-react';
 import { StaffUser } from '@/types/itinerary';
+import { getAssetPath } from '@/lib/assets';
 
 interface NavbarProps {
   currentTab: 'whatsapp-leads' | 'editor' | 'activities' | 'catalog' | 'preview' | 'docs';
@@ -73,8 +74,14 @@ export const Navbar: React.FC<NavbarProps> = ({
             title="Travel Care Tours - Staff B2B Workspace"
           >
             <img 
-              src="/TC_logo_horizontal.png" 
+              src={getAssetPath('/TC_logo_horizontal.png')} 
               alt="Travel Care Tours" 
+              onError={(e) => {
+                const target = e.currentTarget;
+                if (!target.src.includes('/planner_antigravity/')) {
+                  target.src = '/planner_antigravity/TC_logo_horizontal.png';
+                }
+              }}
               className="h-8 sm:h-12 w-auto object-contain max-w-[170px] sm:max-w-[210px]"
             />
           </div>

@@ -1,6 +1,12 @@
 import type {NextConfig} from 'next';
 
+const isGitHubActions = process.env.GITHUB_ACTIONS === 'true';
+const basePath = isGitHubActions ? '/planner_antigravity' : '';
+
 const nextConfig: NextConfig = {
+  env: {
+    NEXT_PUBLIC_BASE_PATH: basePath,
+  },
   reactStrictMode: true,
   eslint: {
     ignoreDuringBuilds: true,

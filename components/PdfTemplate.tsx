@@ -22,6 +22,7 @@ import {
 import QRCode from 'qrcode';
 import { TripDetails } from '@/types/itinerary';
 import { COMPANY_DETAILS } from '@/lib/sample-data';
+import { getAssetPath } from '@/lib/assets';
 
 interface PdfTemplateProps {
   trip: TripDetails;
@@ -73,8 +74,14 @@ const PageHeader: React.FC<{ pageNum?: number }> = () => (
     {/* Left: Travel Care Tours Logo */}
     <div className="flex items-center gap-3">
       <img 
-        src="/TC_logo_horizontal.png" 
+        src={getAssetPath('/TC_logo_horizontal.png')} 
         alt="Travel Care Tours Pvt Ltd" 
+        onError={(e) => {
+          const target = e.currentTarget;
+          if (!target.src.includes('/planner_antigravity/')) {
+            target.src = '/planner_antigravity/TC_logo_horizontal.png';
+          }
+        }}
         className="h-14 sm:h-16 w-auto object-contain max-h-18"
       />
     </div>
