@@ -55,6 +55,8 @@ import {
   Palmtree,
   ArrowRight
 } from 'lucide-react';
+import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas-pro';
 
 export interface PlannerClientProps {
   initialTab?: 'whatsapp-leads' | 'editor' | 'activities' | 'catalog' | 'preview' | 'docs';
@@ -235,14 +237,77 @@ export function PlannerClient({ initialTab = 'whatsapp-leads' }: PlannerClientPr
 
   const previewScrollContainerRef = useRef<HTMLDivElement>(null);
 
-  // High-Resolution Native Browser Print / Save as PDF (Vector 300+ DPI)
+  // High-Resolution Native Browser Print / Save as PDF
   const triggerNativePrint = () => {
     window.print();
   };
 
-  // Direct PDF Download / Save action - invokes browser vector PDF engine
-  const downloadPdfFile = () => {
-    window.print();
+  // Direct PDF File Download using html2canvas & jsPDF with exact A4 proportions
+  const downloadPdfFile = async () => {
+    if (!printRef.current) return;
+    setIsExportingPdf(true);
+
+    try {
+      // Find all page containers
+      const pageElements = printRef.current.querySelectorAll('.pdf-page-container');
+      const pdf = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4',
+      });
+
+      for (let i = 0; i < pageElements.length; i++) {
+        const pageEl = pageElements[i] as HTMLElement;
+        const canvas = await html2canvas(pageEl, {
+          scale: 3, // 300 PPI high-definition print resolution
+          useCORS: true,
+          logging: false,
+          backgroundColor: '#ffffff',
+          windowWidth: 1200,
+          onclone: (clonedDoc) => {
+            // Remove zoom transform on all cloned containers to prevent distorted scales
+            const transformedEls = clonedDoc.querySelectorAll('[style*="transform"]');
+            transformedEls.forEach((el) => {
+              (el as HTMLElement).style.transform = 'none';
+            });
+
+            // Ensure cloned page containers strictly adhere to A4 dimensions
+            const clonedPages = clonedDoc.querySelectorAll('.pdf-page-container');
+            clonedPages.forEach((p) => {
+              const htmlP = p as HTMLElement;
+              htmlP.style.width = '210mm';
+              htmlP.style.maxWidth = '210mm';
+              htmlP.style.minHeight = '297mm';
+              htmlP.style.maxHeight = '297mm';
+              htmlP.style.height = '297mm';
+              htmlP.style.aspectRatio = '1 / 1.414';
+              htmlP.style.objectFit = 'contain';
+              htmlP.style.boxSizing = 'border-box';
+              htmlP.style.overflow = 'hidden';
+              htmlP.style.transform = 'none';
+            });
+          },
+        });
+
+        const imgData = canvas.toDataURL('image/jpeg', 0.95);
+        if (i > 0) pdf.addPage('a4', 'portrait');
+
+        // A4 standard: 210 x 297 mm - Maintain exact aspect ratio
+        const pageWidth = 210;
+        const pageHeight = 297;
+        const imgHeight = (canvas.height * pageWidth) / canvas.width;
+
+        // Render cleanly within the A4 boundary without distortion
+        pdf.addImage(imgData, 'JPEG', 0, 0, pageWidth, Math.min(pageHeight, imgHeight), undefined, 'FAST');
+      }
+
+      pdf.save(`TravelCareTours_Itinerary_${trip.voucherNumber || 'TCT-2026-Q0196'}.pdf`);
+    } catch (err) {
+      console.error('PDF export error:', err);
+      window.print();
+    } finally {
+      setIsExportingPdf(false);
+    }
   };
 
   const handleFitWidth = () => {
@@ -428,12 +493,29 @@ ${trip.days.map((d) => `*Day ${d.dayNumber} (${d.destination}):* ${d.activities.
                   <button
                     id="btn-download-pdf-file"
                     type="button"
+                    onClick={downloadPdfFile}
+                    disabled={isExportingPdf}
+                    className="flex items-center gap-1.5 px-3.5 sm:px-4 py-2 text-xs font-bold text-emerald-950 bg-emerald-100 hover:bg-emerald-200 border border-emerald-300 rounded-xl transition-colors cursor-pointer shadow-2xs"
+                    title="Download PDF File"
+                  >
+                    {isExportingPdf ? (
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <Download className="w-3.5 h-3.5 text-emerald-800" />
+                    )}
+                    <span>{isExportingPdf ? 'Exporting...' : 'Download PDF'}</span>
+                  </button>
+
+                  <button
+                    id="btn-print-native-pdf"
+                    type="button"
                     onClick={triggerNativePrint}
                     className="flex items-center gap-2 px-3.5 sm:px-5 py-2 text-xs font-bold text-white bg-gradient-to-r from-emerald-800 to-teal-800 hover:from-emerald-900 hover:to-teal-900 rounded-xl shadow-md transition-all hover:scale-[1.02] cursor-pointer"
-                    title="Download / Save as PDF (Vector 300+ DPI)"
+                    title="Print Document or Save as PDF"
                   >
                     <Printer className="w-4 h-4 text-emerald-200" />
-                    <span>Download / Print PDF (300 DPI Vector)</span>
+                    <span className="hidden sm:inline">Print / Save as PDF</span>
+                    <span className="sm:hidden">Print</span>
                   </button>
                 </div>
               </div>
