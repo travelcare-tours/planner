@@ -41,6 +41,7 @@ import {
 } from 'lucide-react';
 import { TripDetails, AccommodationItem, DayItinerary } from '@/types/itinerary';
 import { INITIAL_DESTINATIONS_CATALOG } from '@/lib/sample-data';
+import { generateFallbackTitles } from '@/lib/title-generator';
 import DatePicker, { parseDateSafe } from '@/components/DatePicker';
 import { PREFERRED_STAY_HUBS } from '@/components/WhatsappLeadsView';
 
@@ -520,34 +521,45 @@ export const TripDetailsForm: React.FC<TripDetailsFormProps> = ({
     setIsSuggestingTitle(true);
     try {
       const destinations = trip.accommodations.map((a) => a.destination).filter(Boolean);
-      const res = await fetch('/api/planner/suggest-title', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          destinations,
-          nights: trip.durationNights,
-          days: trip.durationDays,
-          currentTitle: trip.tripTitle,
-        }),
-      });
+      let suggestions = generateFallbackTitles(destinations, trip.durationNights, trip.durationDays);
+      let chosen = suggestions[0];
 
-      if (res.ok) {
-        const data = await res.json();
-        if (data.suggestions && data.suggestions.length > 0) {
-          setTitleSuggestions(data.suggestions);
-          setShowTitleSuggestions(true);
-          const chosen = data.primaryTitle || data.suggestions[0];
-          if (applyFirstImmediately && chosen) {
-            onUpdateTrip({
-              ...trip,
-              tripTitle: chosen,
-            });
-            setTopTitleDraft(chosen);
+      try {
+        const res = await fetch('/api/planner/suggest-title', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            destinations,
+            nights: trip.durationNights,
+            days: trip.durationDays,
+            currentTitle: trip.tripTitle,
+          }),
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          if (data.suggestions && data.suggestions.length > 0) {
+            suggestions = data.suggestions;
+            chosen = data.primaryTitle || data.suggestions[0];
           }
+        }
+      } catch {
+        // Fallback already prepared
+      }
+
+      if (suggestions.length > 0) {
+        setTitleSuggestions(suggestions);
+        setShowTitleSuggestions(true);
+        if (applyFirstImmediately && chosen) {
+          onUpdateTrip({
+            ...trip,
+            tripTitle: chosen,
+          });
+          setTopTitleDraft(chosen);
         }
       }
     } catch (err) {
-      console.error('Failed to suggest title using AI:', err);
+      console.error('Failed to suggest title:', err);
     } finally {
       setIsSuggestingTitle(false);
     }
