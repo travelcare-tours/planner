@@ -28,43 +28,50 @@ interface PdfTemplateProps {
   trip: TripDetails;
 }
 
-// Authentic UPI App Badges (XS size)
+// Authentic UPI App Transparent SVG Logos (No white box, no borders)
 const UpiLogoBadge = () => (
-  <span className="inline-flex items-center gap-1 bg-white border border-slate-200 rounded px-1.5 py-0.5 shadow-2xs">
-    <svg className="w-3.5 h-3" viewBox="0 0 100 36" fill="none">
-      <path d="M15 6L8 28H3L10 6H15Z" fill="#097939"/>
-      <path d="M23 6L16 28H11L18 6H23Z" fill="#ED752E"/>
+  <span className="inline-flex items-center" title="UPI (Unified Payments Interface)">
+    <svg className="h-4 w-auto" viewBox="0 0 54 18" fill="none">
+      <polygon points="11,1 4,17 0,17 7,1" fill="#00783E" />
+      <polygon points="19,1 12,17 8,17 15,1" fill="#F37021" />
+      <text x="22" y="14" fill="#FFFFFF" fontWeight="900" fontSize="13" fontFamily="system-ui, -apple-system, sans-serif" letterSpacing="0.8">UPI</text>
     </svg>
-    <span className="font-bold text-[9px] text-slate-800">UPI</span>
   </span>
 );
 
 const GPayLogoBadge = () => (
-  <span className="inline-flex items-center gap-1 bg-white border border-slate-200 rounded px-1.5 py-0.5 shadow-2xs">
-    <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none">
-      <path d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.66-5.17 3.66-9.17z" fill="#4285F4"/>
-      <path d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.25v3.15C3.26 21.36 7.33 24 12 24z" fill="#34A853"/>
-      <path d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.58H1.25C.45 8.16 0 9.93 0 12s.45 3.84 1.25 5.42l4.03-3.15z" fill="#FBBC05"/>
-      <path d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.33 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98z" fill="#EA4335"/>
+  <span className="inline-flex items-center" title="Google Pay">
+    <svg className="h-4 w-auto" viewBox="0 0 56 18" fill="none">
+      <g transform="translate(0, 1)">
+        <path d="M15.68 8.18c0-.57-.05-1.11-.14-1.64H8v3.09h4.3a3.68 3.68 0 0 1-1.6 2.41v2.01h2.59c1.52-1.4 2.39-3.46 2.39-5.87z" fill="#4285F4"/>
+        <path d="M8 16c2.16 0 3.97-.71 5.3-1.95l-2.59-2.01c-.72.48-1.64.76-2.71.76-2.08 0-3.84-1.4-4.47-3.32H.9v2.07C2.21 14.15 4.9 16 8 16z" fill="#34A853"/>
+        <path d="M3.53 9.48c-.16-.48-.25-1-.25-1.48s.09-1 .25-1.48V4.45H.9A7.996 7.996 0 0 0 0 8c0 1.29.31 2.51.9 3.55l2.63-2.07z" fill="#FBBC04"/>
+        <path d="M8 3.18c1.17 0 2.23.4 3.06 1.2l2.29-2.3C11.97.79 10.16 0 8 0 4.9 0 2.21 1.85.9 4.45l2.63 2.07C4.16 4.58 5.92 3.18 8 3.18z" fill="#EA4335"/>
+      </g>
+      <text x="19" y="13.5" fill="#FFFFFF" fontFamily="system-ui, -apple-system, sans-serif" fontWeight="700" fontSize="12" letterSpacing="-0.2">Pay</text>
     </svg>
-    <span className="font-bold text-[9px] text-slate-800">GPay</span>
   </span>
 );
 
 const PhonePeLogoBadge = () => (
-  <span className="inline-flex items-center gap-1 bg-white border border-slate-200 rounded px-1.5 py-0.5 shadow-2xs">
-    <span className="w-3 h-3 rounded-full bg-[#5f259f] text-white flex items-center justify-center font-bold text-[8px] leading-none">
-      पे
-    </span>
-    <span className="font-bold text-[9px] text-purple-900">PhonePe</span>
+  <span className="inline-flex items-center gap-1" title="PhonePe">
+    <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none">
+      <path 
+        d="M10.206 9.941h2.949v4.692c-.402.201-.938.268-1.34.268-1.072 0-1.609-.536-1.609-1.743V9.941zm13.47 4.816c-1.523 6.449-7.985 10.442-14.433 8.919C2.794 22.154-1.199 15.691.324 9.243C1.847 2.794 8.309-1.199 14.757.324c6.449 1.523 10.442 7.985 8.919 14.433zm-6.231-5.888a.887.887 0 0 0-.871-.871h-1.609l-3.686-4.222c-.335-.402-.871-.536-1.407-.402l-1.274.401c-.201.067-.268.335-.134.469l4.021 3.82H6.386c-.201 0-.335.134-.335.335v.67c0 .469.402.871.871.871h.938v3.217c0 2.413 1.273 3.82 3.418 3.82.67 0 1.206-.067 1.877-.335v2.145c0 .603.469 1.072 1.072 1.072h.938a.432.432 0 0 0 .402-.402V9.874h1.542c.201 0 .335-.134.335-.335v-.67z" 
+        fill="#A855F7"
+      />
+    </svg>
+    <span className="font-bold text-[11px] text-white tracking-tight">Phone<span className="text-purple-300">Pe</span></span>
   </span>
 );
 
 const PaytmLogoBadge = () => (
-  <span className="inline-flex items-center gap-1 bg-white border border-slate-200 rounded px-1.5 py-0.5 shadow-2xs">
-    <span className="font-extrabold text-[9px] text-[#00b9f5] tracking-tight">
-      Pay<span className="text-[#002e6e]">tm</span>
-    </span>
+  <span className="inline-flex items-center" title="Paytm">
+    <svg className="h-4 w-auto" viewBox="0 0 54 18" fill="none">
+      <text x="0" y="14" fill="#00BAF2" fontWeight="900" fontSize="14" fontFamily="system-ui, -apple-system, sans-serif" letterSpacing="-0.3">
+        Pay<tspan fill="#FFFFFF">tm</tspan>
+      </text>
+    </svg>
   </span>
 );
 
@@ -762,9 +769,9 @@ export const PdfTemplate: React.FC<PdfTemplateProps> = ({ trip }) => {
                           <ExternalLink className="w-3.5 h-3.5 text-emerald-200" />
                         </a>
                       </div>
-                      {/* UPI Icons outside the button - XS in size */}
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className="text-[10px] text-slate-300 font-medium">Supported Apps:</span>
+                      {/* UPI Logos outside the button - Transparent SVGs */}
+                      <div className="flex items-center gap-2.5 flex-wrap pt-1">
+                        <span className="text-[10px] text-emerald-300 font-medium">Supported Apps:</span>
                         <UpiLogoBadge />
                         <GPayLogoBadge />
                         <PhonePeLogoBadge />
@@ -785,14 +792,22 @@ export const PdfTemplate: React.FC<PdfTemplateProps> = ({ trip }) => {
                   <>
                     <div className="text-[11px] font-bold text-slate-800 uppercase tracking-wider mb-1 flex items-center gap-1">
                       <QrCode className="w-3.5 h-3.5 text-emerald-700" />
-                      Scan QR Code to Pay
+                      Scan or Tap QR to Pay
                     </div>
                     {qrCodeDataUrl ? (
-                      <img 
-                        src={qrCodeDataUrl} 
-                        alt="Scan UPI QR to Pay Advance" 
-                        className="w-28 h-28 object-contain rounded-md border border-emerald-800/20 p-1 mb-1.5 bg-white shadow-2xs"
-                      />
+                      <a 
+                        href={upiPayLink}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="block cursor-pointer"
+                        title="Click or Tap to Pay Advance via UPI"
+                      >
+                        <img 
+                          src={qrCodeDataUrl} 
+                          alt="Scan or Tap UPI QR to Pay Advance" 
+                          className="w-28 h-28 object-contain rounded-md border border-emerald-800/20 p-1 mb-1.5 bg-white shadow-2xs hover:scale-105 transition-transform"
+                        />
+                      </a>
                     ) : (
                       <div className="w-28 h-28 bg-slate-100 rounded-md border border-dashed border-emerald-700 flex flex-col items-center justify-center p-1 mb-1.5">
                         <QrCode className="w-12 h-12 text-emerald-950" />
@@ -803,7 +818,7 @@ export const PdfTemplate: React.FC<PdfTemplateProps> = ({ trip }) => {
                       70% Advance: ₹ {advance70.toLocaleString('en-IN')}/-
                     </div>
                     <div className="text-[9px] text-slate-500 mt-0.5">
-                      Scan with GPay, PhonePe, Paytm or any UPI App
+                      Scan or tap with GPay, PhonePe, Paytm or any UPI App
                     </div>
                   </>
                 ) : (

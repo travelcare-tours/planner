@@ -296,9 +296,39 @@ export function PlannerClient({ initialTab = 'whatsapp-leads' }: PlannerClientPr
         const pageWidth = 210;
         const pageHeight = 297;
         const imgHeight = (canvas.height * pageWidth) / canvas.width;
+        const renderHeight = Math.min(pageHeight, imgHeight);
 
         // Render cleanly within the A4 boundary without distortion
-        pdf.addImage(imgData, 'JPEG', 0, 0, pageWidth, Math.min(pageHeight, imgHeight), undefined, 'FAST');
+        pdf.addImage(imgData, 'JPEG', 0, 0, pageWidth, renderHeight, undefined, 'FAST');
+
+        // Map all clickable links (such as direct UPI payment links) to interactive PDF annotations
+        const pageRect = pageEl.getBoundingClientRect();
+        if (pageRect.width > 0 && pageRect.height > 0) {
+          const linkElements = pageEl.querySelectorAll('a[href]');
+          linkElements.forEach((linkNode) => {
+            const linkEl = linkNode as HTMLAnchorElement;
+            const href = linkEl.getAttribute('href');
+            if (!href || href.startsWith('#')) return;
+
+            const linkRect = linkEl.getBoundingClientRect();
+            if (linkRect.width <= 0 || linkRect.height <= 0) return;
+
+            // Compute normalized relative coordinates (invariant to zoom and scroll)
+            const leftRatio = (linkRect.left - pageRect.left) / pageRect.width;
+            const topRatio = (linkRect.top - pageRect.top) / pageRect.height;
+            const widthRatio = linkRect.width / pageRect.width;
+            const heightRatio = linkRect.height / pageRect.height;
+
+            const xMm = leftRatio * pageWidth;
+            const yMm = topRatio * renderHeight;
+            const wMm = widthRatio * pageWidth;
+            const hMm = heightRatio * renderHeight;
+
+            if (wMm > 0.5 && hMm > 0.5) {
+              pdf.link(xMm, yMm, wMm, hMm, { url: href });
+            }
+          });
+        }
       }
 
       pdf.save(`TravelCareTours_Itinerary_${trip.voucherNumber || 'TCT-2026-Q0196'}.pdf`);
