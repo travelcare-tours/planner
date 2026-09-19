@@ -48,10 +48,15 @@
     break-inside: avoid !important;
   }
 
-  .pdf-template-container,
+  .pdf-template-container {
+    width: 210mm !important;
+    max-width: 210mm !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: transparent !important;
+  }
+
   .pdf-page-container {
-    aspect-ratio: 1 / 1.414 !important;
-    object-fit: contain !important;
     box-sizing: border-box !important;
     width: 210mm !important;
     max-width: 210mm !important;
@@ -59,7 +64,7 @@
     min-height: 297mm !important;
     max-height: 297mm !important;
     margin: 0 !important;
-    padding: 12mm 15mm !important;
+    padding: 12mm 16mm !important;
     box-shadow: none !important;
     border: none !important;
     page-break-after: always !important;

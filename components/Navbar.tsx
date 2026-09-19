@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { 
   Compass, 
   FileText, 
@@ -49,7 +50,24 @@ export const Navbar: React.FC<NavbarProps> = ({
   voucherNumber,
 }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // Lock body scroll when mobile menu is open to prevent background scrolling and eliminate double scrollbars
+  useEffect(() => {
+    if (isMenuOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [isMenuOpen]);
 
   // Close menu on click outside
   useEffect(() => {
@@ -318,14 +336,14 @@ export const Navbar: React.FC<NavbarProps> = ({
           </button>
         </div>
 
-        {/* Mobile Menu Slide-Over / Bottom Sheet */}
-        {isMenuOpen && (
+        {/* Mobile Menu Slide-Over / Bottom Sheet - rendered via Portal to escape header's backdrop-filter & sticky constraints */}
+        {mounted && isMenuOpen && createPortal(
           <div className="md:hidden fixed inset-0 z-50 flex flex-col justify-end bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
             <div 
               className="fixed inset-0"
               onClick={() => setIsMenuOpen(false)}
             />
-            <div className="relative bg-white rounded-t-2xl p-4 shadow-2xl border-t border-slate-200 space-y-3 z-10 max-h-[85vh] overflow-y-auto">
+            <div className="relative bg-white rounded-t-2xl p-4 shadow-2xl border-t border-slate-200 space-y-3 z-10 max-h-[85vh] overflow-y-auto no-scrollbar">
               <div className="flex items-center justify-between pb-2 border-b border-slate-100">
                 <div className="flex items-center gap-2">
                   <div className="w-2 h-5 rounded-full bg-emerald-700" />
@@ -333,7 +351,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 </div>
                 <button
                   onClick={() => setIsMenuOpen(false)}
-                  className="p-1.5 text-slate-400 hover:text-slate-700 rounded-lg hover:bg-slate-100 transition-colors"
+                  className="p-1.5 text-slate-400 hover:text-slate-700 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -346,7 +364,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     setCurrentTab('editor');
                     setIsMenuOpen(false);
                   }}
-                  className={`w-full flex items-start gap-3 p-3 rounded-xl border text-left transition-all ${
+                  className={`w-full flex items-start gap-3 p-3 rounded-xl border text-left transition-all cursor-pointer ${
                     currentTab === 'editor'
                       ? 'bg-amber-50/80 border-amber-300 text-amber-950 font-semibold'
                       : 'border-slate-200 bg-white hover:bg-slate-50 text-slate-800'
@@ -370,7 +388,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     setCurrentTab('catalog');
                     setIsMenuOpen(false);
                   }}
-                  className={`w-full flex items-start gap-3 p-3 rounded-xl border text-left transition-all ${
+                  className={`w-full flex items-start gap-3 p-3 rounded-xl border text-left transition-all cursor-pointer ${
                     currentTab === 'catalog'
                       ? 'bg-indigo-50/80 border-indigo-300 text-indigo-950 font-semibold'
                       : 'border-slate-200 bg-white hover:bg-slate-50 text-slate-800'
@@ -394,7 +412,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     onOpenImport();
                     setIsMenuOpen(false);
                   }}
-                  className="w-full flex items-start gap-3 p-3 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-left transition-all"
+                  className="w-full flex items-start gap-3 p-3 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-left transition-all cursor-pointer"
                 >
                   <div className="p-2 rounded-lg bg-emerald-100 text-emerald-800 shrink-0 mt-0.5">
                     <Upload className="w-5 h-5" />
@@ -413,12 +431,13 @@ export const Navbar: React.FC<NavbarProps> = ({
               <button
                 type="button"
                 onClick={() => setIsMenuOpen(false)}
-                className="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition-colors"
+                className="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition-colors cursor-pointer"
               >
                 Close Menu
               </button>
             </div>
-          </div>
+          </div>,
+          document.body
         )}
       </div>
     </header>

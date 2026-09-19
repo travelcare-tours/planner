@@ -77,18 +77,22 @@ const PaytmLogoBadge = () => (
 
 // Recurring Page Header Component matching official company identity
 const PageHeader: React.FC<{ pageNum?: number }> = () => (
-  <div className="border-b-2 border-emerald-900 pb-2.5 mb-4 flex items-start justify-between gap-4">
+  <div 
+    className="border-b-2 border-emerald-900 pb-2.5 mb-4 flex items-start justify-between gap-4"
+    style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', borderBottom: '2px solid #064e3b', paddingBottom: '10px', marginBottom: '16px' }}
+  >
     {/* Left: Travel Care Tours Logo */}
-    <div className="flex items-center gap-3">
+    <div className="flex items-center gap-3" style={{ display: 'flex', alignItems: 'center' }}>
       <img 
         src={TC_LOGO_BASE64} 
         alt="Travel Care Tours Pvt Ltd" 
         className="h-14 sm:h-16 w-auto object-contain max-h-18"
+        style={{ height: '56px', width: 'auto', maxHeight: '56px', objectFit: 'contain' }}
       />
     </div>
 
     {/* Right: Company verified address and contacts */}
-    <div className="text-right text-xs text-slate-600 space-y-0.5">
+    <div className="text-right text-xs text-slate-600 space-y-0.5" style={{ textAlign: 'right' }}>
       <div className="font-bold text-emerald-950 uppercase tracking-wide text-xs">
         Travel Care Tours Pvt. Ltd.
       </div>
@@ -132,13 +136,14 @@ export const PdfTemplate: React.FC<PdfTemplateProps> = ({ trip }) => {
 
   // Numerical pricing calculations with strict validator logic:
   // Parse net amount properly (handling decimals .00 without multiplying by 100)
-  const parseCostToNumber = (val?: string): number => {
-    if (!val) return 81000;
-    const cleaned = val.replace(/[₹,\s]/g, '').trim();
+  const parseCostToNumber = (val?: string | number): number => {
+    if (typeof val === 'number') return isNaN(val) ? 0 : Math.round(val);
+    if (!val) return 0;
+    const cleaned = String(val).replace(/[₹,\s]/g, '').trim();
     const match = cleaned.match(/\d+(\.\d+)?/);
-    if (!match) return 81000;
+    if (!match) return 0;
     const num = parseFloat(match[0]);
-    return isNaN(num) || num <= 0 ? 81000 : Math.round(num);
+    return isNaN(num) || num <= 0 ? 0 : Math.round(num);
   };
 
   const netAmount = parseCostToNumber(trip.totalPackageCost);

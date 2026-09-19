@@ -43,6 +43,10 @@ import {
   HOTEL_SUGGESTIONS 
 } from '@/lib/sample-data';
 import DatePicker, { parseDateSafe, formatDisplayDate } from '@/components/DatePicker';
+import { 
+  syncDaysWithAccommodationsAndPickup, 
+  generateDynamicInclusionsAndExclusions 
+} from '@/components/TripDetailsForm';
 
 interface WhatsappLeadsViewProps {
   trip: TripDetails;
@@ -303,7 +307,30 @@ export const WhatsappLeadsView: React.FC<WhatsappLeadsViewProps> = ({
   const subtotalCost = baseCost + marginAmount;
 
   // Final Gross Selling Package Value
+  // Final Gross Selling Package Value
   const finalTotalPackageCost = Math.max(0, subtotalCost + (Number(adjustmentAmount) || 0));
+
+  // Helper to calculate total cost string
+  const calculateTotalCostString = (
+    accs: AccommodationItem[],
+    vehCost: number,
+    mType: 'percentage' | 'custom',
+    mPct: number,
+    mCustom: number,
+    adj: number
+  ) => {
+    const hotelTotal = accs.reduce((sum, acc) => {
+      const price = Number(acc.b2bPrice) || 0;
+      const nights = Math.max(1, Number(acc.nights) || 1);
+      return sum + (price * nights);
+    }, 0);
+    const bCost = hotelTotal + (Number(vehCost) || 0);
+    const mAmt = mType === 'percentage'
+      ? Math.round(bCost * ((Number(mPct) || 0) / 100))
+      : (Number(mCustom) || 0);
+    const finalAmt = Math.max(0, bCost + mAmt + (Number(adj) || 0));
+    return `₹ ${finalAmt.toLocaleString('en-IN')}/-`;
+  };
 
   // Sync computed pricing to trip object
   const syncPricingToTrip = (
@@ -313,17 +340,7 @@ export const WhatsappLeadsView: React.FC<WhatsappLeadsViewProps> = ({
     mCustom: number,
     adj: number
   ) => {
-    const currentTotalHotel = trip.accommodations.reduce((sum, acc) => {
-      const price = Number(acc.b2bPrice) || 0;
-      const nights = Math.max(1, Number(acc.nights) || 1);
-      return sum + (price * nights);
-    }, 0);
-
-    const bCost = currentTotalHotel + (Number(vehCost) || 0);
-    const mAmt = mType === 'percentage'
-      ? Math.round(bCost * ((Number(mPct) || 0) / 100))
-      : (Number(mCustom) || 0);
-    const finalAmt = Math.max(0, bCost + mAmt + (Number(adj) || 0));
+    const newTotalStr = calculateTotalCostString(trip.accommodations, vehCost, mType, mPct, mCustom, adj);
 
     onUpdateTrip({
       ...trip,
@@ -332,7 +349,7 @@ export const WhatsappLeadsView: React.FC<WhatsappLeadsViewProps> = ({
       marginPercent: mPct,
       marginCustomAmount: mCustom,
       adjustmentAmount: adj,
-      totalPackageCost: `₹ ${finalAmt.toLocaleString('en-IN')}/-`,
+      totalPackageCost: newTotalStr,
     });
   };
 
@@ -343,6 +360,7 @@ export const WhatsappLeadsView: React.FC<WhatsappLeadsViewProps> = ({
     const updatedDropoff = calculateDropoffFromPickup(formattedPickup, totalNights);
     const updatedAccs = recalculateSequentialCheckIns(formattedPickup, trip.accommodations);
     const updatedRoute = buildRouteSummary(trip.pickupLocation, updatedAccs, trip.dropoffLocation);
+    const updatedDays = syncDaysWithAccommodationsAndPickup(trip.days || [], updatedAccs, formattedPickup, trip.dropoffLocation);
 
     onUpdateTrip({
       ...trip,
@@ -350,6 +368,7 @@ export const WhatsappLeadsView: React.FC<WhatsappLeadsViewProps> = ({
       dropoffDate: updatedDropoff,
       accommodations: updatedAccs,
       routeSummary: updatedRoute,
+      days: updatedDays,
     });
   };
 
@@ -386,11 +405,16 @@ export const WhatsappLeadsView: React.FC<WhatsappLeadsViewProps> = ({
     // Recalculate sequential check-in dates based on new order
     const updatedWithDates = recalculateSequentialCheckIns(trip.pickupDate, reordered);
     const updatedRoute = buildRouteSummary(trip.pickupLocation, updatedWithDates, trip.dropoffLocation);
+    const updatedDays = syncDaysWithAccommodationsAndPickup(trip.days || [], updatedWithDates, trip.pickupDate, trip.dropoffLocation);
+    const { inclusions, exclusions } = generateDynamicInclusionsAndExclusions(trip.vehicleType, updatedWithDates, trip.inclusions, trip.exclusions);
 
     onUpdateTrip({
       ...trip,
       accommodations: updatedWithDates,
       routeSummary: updatedRoute,
+      days: updatedDays,
+      inclusions,
+      exclusions,
     });
   };
 
@@ -408,12 +432,17 @@ export const WhatsappLeadsView: React.FC<WhatsappLeadsViewProps> = ({
 
     updatedAccs[index] = target;
 
+    // Recalculate package price with new hotel totals
+    const newTotalStr = calculateTotalCostString(updatedAccs, vehicleCost, marginType, marginPercent, marginCustomAmount, adjustmentAmount);
+
     // If nights changed, recalculate sequential check-in dates for all subsequent rows
     if (field === 'nights') {
       updatedAccs = recalculateSequentialCheckIns(trip.pickupDate, updatedAccs);
       const totalNights = updatedAccs.reduce((sum, a) => sum + (a.nights || 1), 0);
       const updatedDropoff = calculateDropoffFromPickup(trip.pickupDate, totalNights);
       const updatedRoute = buildRouteSummary(trip.pickupLocation, updatedAccs, trip.dropoffLocation);
+      const updatedDays = syncDaysWithAccommodationsAndPickup(trip.days || [], updatedAccs, trip.pickupDate, trip.dropoffLocation);
+      const { inclusions, exclusions } = generateDynamicInclusionsAndExclusions(trip.vehicleType, updatedAccs, trip.inclusions, trip.exclusions);
 
       onUpdateTrip({
         ...trip,
@@ -422,17 +451,27 @@ export const WhatsappLeadsView: React.FC<WhatsappLeadsViewProps> = ({
         durationDays: totalNights + 1,
         dropoffDate: updatedDropoff,
         routeSummary: updatedRoute,
+        days: updatedDays,
+        inclusions,
+        exclusions,
+        totalPackageCost: newTotalStr,
       });
       return;
     }
 
-    // If destination changed, update route summary
-    if (field === 'destination') {
+    // If destination or hotel changed, update route summary, inclusions and days
+    if (field === 'destination' || field === 'hotelName') {
       const updatedRoute = buildRouteSummary(trip.pickupLocation, updatedAccs, trip.dropoffLocation);
+      const updatedDays = syncDaysWithAccommodationsAndPickup(trip.days || [], updatedAccs, trip.pickupDate, trip.dropoffLocation);
+      const { inclusions, exclusions } = generateDynamicInclusionsAndExclusions(trip.vehicleType, updatedAccs, trip.inclusions, trip.exclusions);
       onUpdateTrip({
         ...trip,
         accommodations: updatedAccs,
         routeSummary: updatedRoute,
+        days: updatedDays,
+        inclusions,
+        exclusions,
+        totalPackageCost: newTotalStr,
       });
       return;
     }
@@ -440,6 +479,7 @@ export const WhatsappLeadsView: React.FC<WhatsappLeadsViewProps> = ({
     onUpdateTrip({
       ...trip,
       accommodations: updatedAccs,
+      totalPackageCost: newTotalStr,
     });
   };
 
@@ -465,6 +505,9 @@ export const WhatsappLeadsView: React.FC<WhatsappLeadsViewProps> = ({
     const totalNights = updatedAccs.reduce((sum, a) => sum + (a.nights || 1), 0);
     const updatedDropoff = calculateDropoffFromPickup(trip.pickupDate, totalNights);
     const updatedRoute = buildRouteSummary(trip.pickupLocation, updatedAccs, trip.dropoffLocation);
+    const updatedDays = syncDaysWithAccommodationsAndPickup(trip.days || [], updatedAccs, trip.pickupDate, trip.dropoffLocation);
+    const { inclusions, exclusions } = generateDynamicInclusionsAndExclusions(trip.vehicleType, updatedAccs, trip.inclusions, trip.exclusions);
+    const newTotalStr = calculateTotalCostString(updatedAccs, vehicleCost, marginType, marginPercent, marginCustomAmount, adjustmentAmount);
 
     onUpdateTrip({
       ...trip,
@@ -473,6 +516,10 @@ export const WhatsappLeadsView: React.FC<WhatsappLeadsViewProps> = ({
       dropoffDate: updatedDropoff,
       accommodations: updatedAccs,
       routeSummary: updatedRoute,
+      days: updatedDays,
+      inclusions,
+      exclusions,
+      totalPackageCost: newTotalStr,
     });
   };
 
@@ -484,6 +531,9 @@ export const WhatsappLeadsView: React.FC<WhatsappLeadsViewProps> = ({
     const totalNights = updatedAccs.reduce((sum, a) => sum + (a.nights || 1), 0);
     const updatedDropoff = calculateDropoffFromPickup(trip.pickupDate, totalNights);
     const updatedRoute = buildRouteSummary(trip.pickupLocation, updatedAccs, trip.dropoffLocation);
+    const updatedDays = syncDaysWithAccommodationsAndPickup(trip.days || [], updatedAccs, trip.pickupDate, trip.dropoffLocation);
+    const { inclusions, exclusions } = generateDynamicInclusionsAndExclusions(trip.vehicleType, updatedAccs, trip.inclusions, trip.exclusions);
+    const newTotalStr = calculateTotalCostString(updatedAccs, vehicleCost, marginType, marginPercent, marginCustomAmount, adjustmentAmount);
 
     onUpdateTrip({
       ...trip,
@@ -492,6 +542,10 @@ export const WhatsappLeadsView: React.FC<WhatsappLeadsViewProps> = ({
       dropoffDate: updatedDropoff,
       accommodations: updatedAccs,
       routeSummary: updatedRoute,
+      days: updatedDays,
+      inclusions,
+      exclusions,
+      totalPackageCost: newTotalStr,
     });
   };
 
@@ -510,6 +564,9 @@ export const WhatsappLeadsView: React.FC<WhatsappLeadsViewProps> = ({
       const totalNights = updatedAccs.reduce((sum, a) => sum + (a.nights || 1), 0);
       const updatedDropoff = calculateDropoffFromPickup(trip.pickupDate, totalNights);
       const updatedRoute = buildRouteSummary(trip.pickupLocation, updatedAccs, trip.dropoffLocation);
+      const updatedDays = syncDaysWithAccommodationsAndPickup(trip.days || [], updatedAccs, trip.pickupDate, trip.dropoffLocation);
+      const { inclusions, exclusions } = generateDynamicInclusionsAndExclusions(trip.vehicleType, updatedAccs, trip.inclusions, trip.exclusions);
+      const newTotalStr = calculateTotalCostString(updatedAccs, vehicleCost, marginType, marginPercent, marginCustomAmount, adjustmentAmount);
 
       onUpdateTrip({
         ...trip,
@@ -518,6 +575,10 @@ export const WhatsappLeadsView: React.FC<WhatsappLeadsViewProps> = ({
         dropoffDate: updatedDropoff,
         accommodations: updatedAccs,
         routeSummary: updatedRoute,
+        days: updatedDays,
+        inclusions,
+        exclusions,
+        totalPackageCost: newTotalStr,
       });
     } else {
       const defaultSuggestions = HOTEL_SUGGESTIONS[destName] || ['Standard 3-Star Hotel'];
@@ -538,6 +599,9 @@ export const WhatsappLeadsView: React.FC<WhatsappLeadsViewProps> = ({
       const totalNights = updatedAccs.reduce((sum, a) => sum + (a.nights || 1), 0);
       const updatedDropoff = calculateDropoffFromPickup(trip.pickupDate, totalNights);
       const updatedRoute = buildRouteSummary(trip.pickupLocation, updatedAccs, trip.dropoffLocation);
+      const updatedDays = syncDaysWithAccommodationsAndPickup(trip.days || [], updatedAccs, trip.pickupDate, trip.dropoffLocation);
+      const { inclusions, exclusions } = generateDynamicInclusionsAndExclusions(trip.vehicleType, updatedAccs, trip.inclusions, trip.exclusions);
+      const newTotalStr = calculateTotalCostString(updatedAccs, vehicleCost, marginType, marginPercent, marginCustomAmount, adjustmentAmount);
 
       onUpdateTrip({
         ...trip,
@@ -546,6 +610,10 @@ export const WhatsappLeadsView: React.FC<WhatsappLeadsViewProps> = ({
         dropoffDate: updatedDropoff,
         accommodations: updatedAccs,
         routeSummary: updatedRoute,
+        days: updatedDays,
+        inclusions,
+        exclusions,
+        totalPackageCost: newTotalStr,
       });
     }
   };
@@ -690,10 +758,13 @@ export const WhatsappLeadsView: React.FC<WhatsappLeadsViewProps> = ({
     }
 
     const updatedRoute = buildRouteSummary(trip.pickupLocation, newAccs, trip.dropoffLocation);
+    const updatedDays = syncDaysWithAccommodationsAndPickup(trip.days || [], newAccs, detectedPickupDate, trip.dropoffLocation);
+    const { inclusions, exclusions } = generateDynamicInclusionsAndExclusions(detectedVehicle, newAccs, trip.inclusions, trip.exclusions);
+    const newTotalStr = calculateTotalCostString(newAccs, vehicleCost, marginType, marginPercent, marginCustomAmount, adjustmentAmount);
 
     onUpdateTrip({
       ...trip,
-      guestName: trip.guestName && trip.guestName !== 'Valued Guest' ? trip.guestName : 'Valued Guest',
+      guestName: trip.guestName || 'Valued Guest',
       vehicleType: detectedVehicle,
       adultsCount: detectedAdults || 2,
       childrenCount: detectedChildren,
@@ -704,6 +775,10 @@ export const WhatsappLeadsView: React.FC<WhatsappLeadsViewProps> = ({
       durationDays: totalN + 1,
       accommodations: newAccs,
       routeSummary: updatedRoute,
+      days: updatedDays,
+      inclusions,
+      exclusions,
+      totalPackageCost: newTotalStr,
     });
 
     // Requirement 1: DO NOT clear pasteInput! Keep it in the parser until quote is completed
@@ -990,8 +1065,8 @@ ${hotelLines}
               <User className="w-4 h-4 sm:w-5 sm:h-5 text-slate-400 absolute left-3.5 top-3.5" />
               <input
                 type="text"
-                value={trip.guestName ?? 'Valued Guest'}
-                onChange={(e) => onUpdateTrip({ ...trip, guestName: e.target.value || 'Valued Guest' })}
+                value={trip.guestName === 'Valued Guest' ? '' : (trip.guestName || '')}
+                onChange={(e) => onUpdateTrip({ ...trip, guestName: e.target.value })}
                 placeholder="Valued Guest"
                 className="w-full h-12 bg-slate-50/70 border border-slate-300 rounded-xl pl-10 sm:pl-11 pr-3 text-sm sm:text-base font-bold text-slate-900 focus:bg-white focus:ring-2 focus:ring-[#0B2545] focus:outline-hidden transition-colors shadow-2xs"
               />
@@ -1016,39 +1091,32 @@ ${hotelLines}
             </div>
           </div>
 
-          {/* Adults Count Stepper - Number first, then - & + */}
-          <div className="sm:col-span-6 lg:col-span-2 space-y-1.5">
-            <label className="text-xs sm:text-sm font-bold text-slate-700 block">Adults (Pax)</label>
-            <div className="flex items-center bg-white border border-slate-300 rounded-xl overflow-hidden shadow-2xs h-12 focus-within:ring-2 focus-within:ring-[#0B2545]">
-              <div className="relative flex-1 h-full flex items-center justify-center bg-slate-50/50 min-w-0">
-                <input
-                  type="number"
-                  min={1}
-                  max={60}
-                  value={trip.adultsCount}
-                  onChange={(e) => onUpdateTrip({ ...trip, adultsCount: Math.max(1, parseInt(e.target.value, 10) || 1) })}
-                  className="w-full text-center text-lg sm:text-xl font-black text-slate-900 focus:outline-hidden bg-transparent"
-                />
-                <span className="text-[10px] text-slate-400 absolute right-1.5 font-bold pointer-events-none hidden sm:inline">Pax</span>
-              </div>
-              <div className="flex items-stretch h-full border-l border-slate-200 shrink-0">
-                <button
-                  type="button"
-                  onClick={() => onUpdateTrip({ ...trip, adultsCount: Math.max(1, trip.adultsCount - 1) })}
-                  className="w-11 h-full flex items-center justify-center text-lg font-black text-slate-700 hover:bg-slate-100 active:bg-slate-200 border-r border-slate-200 transition-colors"
-                  title="Decrease adults"
-                >
-                  –
-                </button>
-                <button
-                  type="button"
-                  onClick={() => onUpdateTrip({ ...trip, adultsCount: trip.adultsCount + 1 })}
-                  className="w-11 h-full flex items-center justify-center text-lg font-black text-slate-700 hover:bg-slate-100 active:bg-slate-200 transition-colors"
-                  title="Increase adults"
-                >
-                  +
-                </button>
-              </div>
+          {/* Requirement 7: Adults & Children Selectors with counter buttons */}
+          <div className="sm:col-span-6 lg:col-span-3 space-y-1.5">
+            <label className="text-xs sm:text-sm font-bold text-slate-700 block">Adults Count</label>
+            <div className="flex items-center h-12 bg-slate-50/70 border border-slate-300 rounded-xl overflow-hidden shadow-2xs">
+              <button
+                type="button"
+                onClick={() => onUpdateTrip({ ...trip, adultsCount: Math.max(1, trip.adultsCount - 1) })}
+                className="w-11 h-full flex items-center justify-center text-slate-600 hover:bg-slate-200 transition-colors font-bold text-lg"
+              >
+                -
+              </button>
+              <input
+                type="number"
+                min={1}
+                max={50}
+                value={trip.adultsCount}
+                onChange={(e) => onUpdateTrip({ ...trip, adultsCount: Math.max(1, parseInt(e.target.value, 10) || 1) })}
+                className="flex-1 text-center font-bold text-slate-900 text-sm sm:text-base bg-transparent border-0 focus:ring-0 focus:outline-hidden"
+              />
+              <button
+                type="button"
+                onClick={() => onUpdateTrip({ ...trip, adultsCount: trip.adultsCount + 1 })}
+                className="w-11 h-full flex items-center justify-center text-slate-600 hover:bg-slate-200 transition-colors font-bold text-lg"
+              >
+                +
+              </button>
             </div>
           </div>
 
@@ -1062,7 +1130,11 @@ ${hotelLines}
               <Car className="w-4 h-4 sm:w-5 sm:h-5 text-slate-400 absolute left-3.5 top-3.5 pointer-events-none" />
               <select
                 value={FLEET_OPTIONS.includes(trip.vehicleType) ? trip.vehicleType : FLEET_OPTIONS[0]}
-                onChange={(e) => onUpdateTrip({ ...trip, vehicleType: e.target.value })}
+                onChange={(e) => {
+                  const newVeh = e.target.value;
+                  const { inclusions, exclusions } = generateDynamicInclusionsAndExclusions(newVeh, trip.accommodations, trip.inclusions, trip.exclusions);
+                  onUpdateTrip({ ...trip, vehicleType: newVeh, inclusions, exclusions });
+                }}
                 className="w-full h-12 bg-slate-50/70 border border-slate-300 rounded-xl pl-10 sm:pl-11 pr-3 text-sm sm:text-base font-bold text-slate-900 focus:bg-white focus:ring-2 focus:ring-[#0B2545] focus:outline-hidden cursor-pointer transition-colors shadow-2xs"
               >
                 {FLEET_OPTIONS.map((v) => (
@@ -1420,9 +1492,6 @@ ${hotelLines}
                   {trip.accommodations.length} Stops ({trip.durationNights}N)
                 </span>
               </div>
-              <p className="text-[10px] sm:text-xs text-slate-500">
-                Use the rearrange button to reorder stops if required.
-              </p>
             </div>
           </div>
 

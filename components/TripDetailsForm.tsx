@@ -296,7 +296,7 @@ function syncAccommodationsToTargetDuration(
 }
 
 // Synchronize DayItinerary array with accommodations count and check-in dates
-function syncDaysWithAccommodationsAndPickup(
+export function syncDaysWithAccommodationsAndPickup(
   existingDays: DayItinerary[],
   accommodations: AccommodationItem[],
   pickupDateStr: string,
@@ -391,7 +391,7 @@ function generateRouteCorridor(
 }
 
 // Generate dynamic Inclusions and Exclusions matching Vehicle and Hotels
-function generateDynamicInclusionsAndExclusions(
+export function generateDynamicInclusionsAndExclusions(
   vehicleType: string,
   accommodations: AccommodationItem[],
   existingInclusions: string[] = [],

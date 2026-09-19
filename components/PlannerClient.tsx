@@ -328,6 +328,23 @@ export function PlannerClient({ initialTab = 'whatsapp-leads' }: PlannerClientPr
               pdf.link(xMm, yMm, wMm, hMm, { url: href });
             }
           });
+
+          // Normalize annotation /Rect bounds to fix jsPDF's inverted-Y bug (where finalBounds.y > finalBounds.h)
+          // PDF spec ISO 32000-1 requires /Rect [llx lly urx ury] with lly < ury.
+          const pageInfo = (pdf.internal as any).getCurrentPageInfo();
+          if (pageInfo?.pageContext?.annotations) {
+            for (const annot of pageInfo.pageContext.annotations) {
+              if (annot.finalBounds) {
+                const yVal = parseFloat(annot.finalBounds.y);
+                const hVal = parseFloat(annot.finalBounds.h);
+                if (yVal > hVal) {
+                  const temp = annot.finalBounds.y;
+                  annot.finalBounds.y = annot.finalBounds.h;
+                  annot.finalBounds.h = temp;
+                }
+              }
+            }
+          }
         }
       }
 
@@ -460,10 +477,7 @@ ${trip.days.map((d) => `*Day ${d.dayNumber} (${d.destination}):* ${d.activities.
                   <Eye className="w-5 h-5 text-emerald-800" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-sm text-slate-900">Multi-Page Itinerary Document Preview</h3>
-                  <p className="text-[11px] text-slate-500">
-                    High-end 8-page format with Travel Care Tours header & address on every page.
-                  </p>
+                  <h3 className="font-bold text-sm text-slate-900">Itinerary Preview</h3>
                 </div>
               </div>
 
@@ -554,20 +568,23 @@ ${trip.days.map((d) => `*Day ${d.dayNumber} (${d.destination}):* ${d.activities.
             {/* Live Document Canvas */}
             <div 
               ref={previewScrollContainerRef}
-              className="w-full overflow-x-auto py-6 px-1 sm:px-4 print:py-0 print:px-0 print:overflow-visible flex justify-center"
+              className="w-full overflow-x-auto overflow-y-visible py-4 sm:py-6 px-1 sm:px-4 print:py-0 print:px-0 print:overflow-visible touch-pan-x touch-pan-y"
+              style={{ WebkitOverflowScrolling: 'touch' }}
             >
-              <div 
-                ref={printRef}
-                id="pdf-template-wrapper"
-                style={{ 
-                  transform: `scale(${pdfZoom / 100})`, 
-                  transformOrigin: 'top center',
-                  width: '210mm',
-                  minWidth: '210mm',
-                }}
-                className="pdf-template-container transition-transform duration-150 py-2 print:py-0 print:transform-none shrink-0"
-              >
-                <PdfTemplate trip={trip} />
+              <div className="min-w-fit w-max mx-auto flex justify-start sm:justify-center">
+                <div 
+                  ref={printRef}
+                  id="pdf-template-wrapper"
+                  style={{ 
+                    transform: `scale(${pdfZoom / 100})`, 
+                    transformOrigin: 'top left',
+                    width: '210mm',
+                    minWidth: '210mm',
+                  }}
+                  className="pdf-template-container transition-transform duration-150 py-2 print:py-0 print:transform-none shrink-0"
+                >
+                  <PdfTemplate trip={trip} />
+                </div>
               </div>
             </div>
           </div>
