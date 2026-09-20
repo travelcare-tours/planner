@@ -269,7 +269,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
                       {/* 4. Switch to Workspace Hub */}
                       <a
-                        href="https://travelcare-tours.github.io/invoice/"
+                        href="https://travelcaretours.in/invoice/"
                         target="_self"
                         title="Switch to Workspace Hub"
                         className="w-full flex items-start gap-3 p-3 rounded-xl text-left text-xs transition-all border border-slate-700 bg-slate-900 text-slate-100 hover:bg-slate-800 shadow-xs cursor-pointer"
@@ -296,7 +296,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           <div className="flex items-center gap-2">
             {/* Desktop Workspace Button */}
             <a
-              href="https://travelcare-tours.github.io/invoice/"
+              href="https://travelcaretours.in/invoice/"
               target="_self"
               title="Switch to Workspace Hub"
               className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-slate-200 hover:text-white bg-slate-800 hover:bg-slate-750 border border-slate-700 transition-all shadow-xs"
@@ -307,7 +307,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
             {/* Mobile Workspace Icon Button */}
             <a
-              href="https://travelcare-tours.github.io/invoice/"
+              href="https://travelcaretours.in/invoice/"
               target="_self"
               title="Workspace Hub"
               className="sm:hidden p-2 rounded-xl bg-slate-800 text-slate-300 hover:text-white border border-slate-700 transition-all flex items-center justify-center"
@@ -473,7 +473,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
                 {/* 4. Switch to Workspace Hub */}
                 <a
-                  href="https://travelcare-tours.github.io/invoice/"
+                  href="https://travelcaretours.in/invoice/"
                   target="_self"
                   title="Switch to Workspace Hub"
                   className="w-full flex items-start gap-3 p-3 rounded-xl border border-slate-700 bg-slate-900 hover:bg-slate-800 text-slate-100 text-left transition-all cursor-pointer shadow-xs"
