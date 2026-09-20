@@ -4,6 +4,8 @@ const isGitHubActions = process.env.GITHUB_ACTIONS === 'true';
 const basePath = isGitHubActions ? '/planner_antigravity' : '';
 
 const nextConfig: NextConfig = {
+  basePath: basePath || undefined,
+  assetPrefix: basePath ? `${basePath}/` : undefined,
   env: {
     NEXT_PUBLIC_BASE_PATH: basePath,
   },
