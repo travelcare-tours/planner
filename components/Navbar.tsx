@@ -21,6 +21,7 @@ import {
   Layers,
   BookOpen,
   ArrowRight,
+  LayoutGrid,
   X
 } from 'lucide-react';
 import { StaffUser } from '@/types/itinerary';
@@ -265,6 +266,25 @@ export const Navbar: React.FC<NavbarProps> = ({
                           <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">Import booking details, customer inputs, or restore sample data.</p>
                         </div>
                       </button>
+
+                      {/* 4. Switch to Workspace Hub */}
+                      <a
+                        href="https://travelcare-tours.github.io/invoice/"
+                        target="_self"
+                        title="Switch to Workspace Hub"
+                        className="w-full flex items-start gap-3 p-3 rounded-xl text-left text-xs transition-all border border-slate-700 bg-slate-900 text-slate-100 hover:bg-slate-800 shadow-xs cursor-pointer"
+                      >
+                        <div className="p-2 rounded-lg bg-slate-800 text-blue-400 shrink-0 mt-0.5 shadow-2xs">
+                          <LayoutGrid className="w-4 h-4" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between">
+                            <span className="font-bold text-white text-xs">Workspace Hub</span>
+                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-900/60 text-blue-300 font-bold border border-blue-700">Billing Portal</span>
+                          </div>
+                          <p className="text-[11px] text-slate-400 mt-0.5 leading-snug">Switch back to Travel Care Tours billing and operations portal.</p>
+                        </div>
+                      </a>
                     </div>
                   </div>
                 </>
@@ -274,6 +294,28 @@ export const Navbar: React.FC<NavbarProps> = ({
 
           {/* Action buttons */}
           <div className="flex items-center gap-2">
+            {/* Desktop Workspace Button */}
+            <a
+              href="https://travelcare-tours.github.io/invoice/"
+              target="_self"
+              title="Switch to Workspace Hub"
+              className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-slate-200 hover:text-white bg-slate-800 hover:bg-slate-750 border border-slate-700 transition-all shadow-xs"
+            >
+              <LayoutGrid className="w-3.5 h-3.5 text-blue-400" />
+              <span>Workspace Hub</span>
+            </a>
+
+            {/* Mobile Workspace Icon Button */}
+            <a
+              href="https://travelcare-tours.github.io/invoice/"
+              target="_self"
+              title="Workspace Hub"
+              className="sm:hidden p-2 rounded-xl bg-slate-800 text-slate-300 hover:text-white border border-slate-700 transition-all flex items-center justify-center"
+              aria-label="Workspace Hub"
+            >
+              <LayoutGrid className="w-4 h-4 text-blue-400" />
+            </a>
+
             <button
               id="btn-generate-pdf"
               onClick={() => {
@@ -428,6 +470,25 @@ export const Navbar: React.FC<NavbarProps> = ({
                     <p className="text-xs text-slate-500 mt-0.5">Paste WhatsApp itinerary or raw text to auto-populate the trip.</p>
                   </div>
                 </button>
+
+                {/* 4. Switch to Workspace Hub */}
+                <a
+                  href="https://travelcare-tours.github.io/invoice/"
+                  target="_self"
+                  title="Switch to Workspace Hub"
+                  className="w-full flex items-start gap-3 p-3 rounded-xl border border-slate-700 bg-slate-900 hover:bg-slate-800 text-slate-100 text-left transition-all cursor-pointer shadow-xs"
+                >
+                  <div className="p-2 rounded-lg bg-slate-800 text-blue-400 shrink-0 mt-0.5 shadow-2xs">
+                    <LayoutGrid className="w-5 h-5" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-white text-sm">Workspace Hub</span>
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-900/60 text-blue-300 font-bold border border-blue-700">Billing Portal</span>
+                    </div>
+                    <p className="text-xs text-slate-400 mt-0.5">Switch back to Travel Care Tours billing and operations portal.</p>
+                  </div>
+                </a>
               </div>
 
               {/* Close Button */}
