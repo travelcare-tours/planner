@@ -295,7 +295,7 @@ function syncAccommodationsToTargetDuration(
   });
 }
 
-// Synchronize DayItinerary array with accommodations count and check-in dates
+// Synchronize DayItinerary array with accommodations count, nights, and check-in dates
 export function syncDaysWithAccommodationsAndPickup(
   existingDays: DayItinerary[],
   accommodations: AccommodationItem[],
@@ -303,58 +303,159 @@ export function syncDaysWithAccommodationsAndPickup(
   dropoffLocation: string
 ): DayItinerary[] {
   const baseDate = parseDateFlexible(pickupDateStr) || new Date();
-  const totalDays = accommodations.length + 1;
   const newDays: DayItinerary[] = [];
+  let currentDayNumber = 1;
+  let dayOffset = 0;
 
-  for (let i = 0; i < accommodations.length; i++) {
-    const acc = accommodations[i];
-    const dayNum = i + 1;
-    const dayDate = acc.checkInDate || formatDateDisplay(addDaysToDate(baseDate, i).toISOString().slice(0, 10));
-    const existing = existingDays.find(d => d.dayNumber === dayNum);
+  for (let aIdx = 0; aIdx < accommodations.length; aIdx++) {
+    const acc = accommodations[aIdx];
+    const nightsCount = Math.max(1, Number(acc.nights) || 1);
+    const prevAcc = aIdx > 0 ? accommodations[aIdx - 1] : null;
 
-    const destCatalog = INITIAL_DESTINATIONS_CATALOG.find(
-      (c) => c.destination.toLowerCase().includes(acc.destination.toLowerCase()) ||
-             acc.destination.toLowerCase().includes(c.destination.toLowerCase())
-    );
+    const normAcc = acc.destination.trim().toLowerCase();
+    const destCatalog = INITIAL_DESTINATIONS_CATALOG.find((c) => {
+      const normCat = c.destination.trim().toLowerCase();
+      if (normCat.includes(normAcc) || normAcc.includes(normCat)) return true;
+      if (normAcc.includes('cochin') && normCat.includes('kochi')) return true;
+      if (normAcc.includes('kochi') && normCat.includes('cochin')) return true;
+      if (normAcc.includes('alleppey') && normCat.includes('alappuzha')) return true;
+      if (normAcc.includes('alappuzha') && normCat.includes('alleppey')) return true;
+      if (normAcc.includes('trivandrum') && normCat.includes('kovalam')) return true;
+      if (normAcc.includes('kumily') && normCat.includes('thekkady')) return true;
+      return false;
+    });
 
-    const defaultActivities = (destCatalog?.defaultActivities || []).map((act, aIdx) => ({
+    const sourceActivities =
+      destCatalog?.defaultActivities && destCatalog.defaultActivities.length > 0
+        ? destCatalog.defaultActivities
+        : [
+            {
+              id: `gen-act-1`,
+              title: `${acc.destination} Local Sightseeing & Highlights`,
+              category: 'Sightseeing' as const,
+              timing: 'Morning' as const,
+              description: `Explore major attractions, viewpoints, and scenic highlights in ${acc.destination}.`,
+            },
+            {
+              id: `gen-act-2`,
+              title: `Scenic Nature & Photography Excursion`,
+              category: 'Nature' as const,
+              timing: 'Afternoon' as const,
+              description: `Enjoy panoramic vistas and photo stops around ${acc.destination}.`,
+            },
+            {
+              id: `gen-act-3`,
+              title: `Leisure Evening & Local Market Stroll`,
+              category: 'Relaxation' as const,
+              timing: 'Evening' as const,
+              description: `Relax at your resort or stroll through local markets in ${acc.destination}.`,
+            },
+          ];
+
+    const defaultActivities = sourceActivities.map((act, idx) => ({
       ...act,
-      isSelected: aIdx < 3,
+      isSelected: idx < 3,
     }));
 
-    newDays.push({
-      dayNumber: dayNum,
-      date: dayDate,
-      title: existing?.title || (i === 0 ? `Arrival in ${acc.destination} & Scenic Exploration` : `${acc.destination} Sightseeing Circuit & Stay`),
-      destination: acc.destination,
-      overnightStay: `${acc.destination} (${acc.hotelName})`,
-      route: existing?.route || `${acc.destination} Sightseeing Corridor`,
-      summary: existing?.summary || `Enjoy scenic experiences, local heritage, and relaxing overnight stay in ${acc.destination}.`,
-      mealsIncluded: acc.mealPlan || existing?.mealsIncluded || 'Breakfast & Dinner',
-      activities: existing && existing.activities && existing.activities.length > 0 ? existing.activities : defaultActivities,
-    });
+    for (let n = 0; n < nightsCount; n++) {
+      const dayNum = currentDayNumber;
+      const dayDate = formatDateDisplay(addDaysToDate(baseDate, dayOffset).toISOString().slice(0, 10));
+      const existing = existingDays.find((d) => d.dayNumber === dayNum);
+      const isSameDestAsExisting =
+        existing &&
+        existing.destination &&
+        (existing.destination.toLowerCase().includes(acc.destination.toLowerCase()) ||
+          acc.destination.toLowerCase().includes(existing.destination.toLowerCase()));
+
+      let dayTitle = '';
+      let dayRoute = '';
+      let daySummary = '';
+
+      if (isSameDestAsExisting && existing.title) {
+        dayTitle = existing.title;
+        dayRoute = existing.route || `${acc.destination} Sightseeing Corridor`;
+        daySummary = existing.summary || `Enjoy scenic experiences and relaxing overnight stay in ${acc.destination}.`;
+      } else {
+        if (dayNum === 1) {
+          dayTitle = `ARRIVAL IN ${acc.destination.toUpperCase()} & SCENIC EXPLORATION`;
+          dayRoute = `Pickup and private transfer to ${acc.destination}`;
+          daySummary = `Arrive and begin your scenic journey to ${acc.destination}. Enjoy panoramic views and relax at your resort.`;
+        } else if (n === 0 && prevAcc) {
+          dayTitle = `${prevAcc.destination.toUpperCase()} → ${acc.destination.toUpperCase()} TRANSFER & SIGHTSEEING`;
+          dayRoute = `${prevAcc.destination} to ${acc.destination} scenic corridor`;
+          daySummary = `After breakfast, travel from ${prevAcc.destination} towards ${acc.destination}. Check in at your hotel and explore local highlights.`;
+        } else {
+          dayTitle = `${acc.destination.toUpperCase()} SIGHTSEEING & SCENIC HIGHLIGHTS`;
+          dayRoute = `${acc.destination} local sightseeing circuit`;
+          daySummary = `Full day dedicated to exploring the finest sights, nature trails, and attractions in ${acc.destination}.`;
+        }
+      }
+
+      // If destination matches existing day, preserve user's activities; otherwise load fresh activities for this destination
+      const activitiesToUse =
+        isSameDestAsExisting && existing.activities && existing.activities.length > 0
+          ? existing.activities
+          : defaultActivities.map((act, idx) => ({
+              ...act,
+              id: `act-${dayNum}-${idx + 1}`,
+              isSelected: idx < 3,
+            }));
+
+      newDays.push({
+        dayNumber: dayNum,
+        date: dayDate,
+        title: dayTitle,
+        destination: acc.destination,
+        overnightStay: `${acc.destination} (${acc.hotelName || 'Resort / Hotel'})`,
+        route: dayRoute,
+        summary: daySummary,
+        mealsIncluded: acc.mealPlan || (dayNum === 1 ? 'Dinner at Resort' : 'Breakfast & Dinner'),
+        activities: activitiesToUse,
+      });
+
+      currentDayNumber++;
+      dayOffset++;
+    }
   }
 
   // Final Departure Day
-  const departureDate = formatDateDisplay(addDaysToDate(baseDate, accommodations.length).toISOString().slice(0, 10));
-  const existingDeparture = existingDays.find(d => d.destination?.toLowerCase() === 'departure' || d.dayNumber === totalDays);
+  const totalDays = currentDayNumber;
+  const departureDate = formatDateDisplay(addDaysToDate(baseDate, dayOffset).toISOString().slice(0, 10));
+  const existingDeparture = existingDays.find(
+    (d) => d.destination?.toLowerCase() === 'departure' || d.dayNumber === totalDays
+  );
+
+  const cleanDropoff = dropoffLocation ? dropoffLocation.split('(')[0].trim() : 'Airport';
+  const lastAcc = accommodations[accommodations.length - 1];
+  const lastDest = lastAcc?.destination || 'Resort';
 
   newDays.push({
     dayNumber: totalDays,
     date: departureDate,
-    title: existingDeparture?.title || `${dropoffLocation ? dropoffLocation.split('(')[0].trim() : 'Cochin'} Departure Transfer`,
+    title: existingDeparture?.title || `${lastDest.toUpperCase()} → ${cleanDropoff.toUpperCase()} DEPARTURE`,
     destination: 'Departure',
     overnightStay: 'Tour Ends with Beautiful Kerala Memories',
-    route: existingDeparture?.route || 'Hotel to Airport / Railway Station Drop',
-    summary: existingDeparture?.summary || 'After breakfast, check out of your hotel and proceed for your departure transfer with sweet memories of Kerala.',
+    route: existingDeparture?.route || `${lastDest} to ${cleanDropoff} Departure Drop`,
+    summary:
+      existingDeparture?.summary ||
+      `After breakfast, check out of your resort in ${lastDest} and proceed for your departure transfer to ${cleanDropoff} with cherished Kerala memories.`,
     mealsIncluded: 'Breakfast',
     activities: existingDeparture?.activities || [
       {
-        id: `act-dep-${totalDays}`,
+        id: `act-dep-${totalDays}-1`,
         title: 'Chauffeur airport / railway station departure drop',
         category: 'Sightseeing',
+        timing: 'Morning',
+        description: 'Chauffeur transfer to terminal as per scheduled flight or train departure.',
+        isSelected: true,
+        isVerified: true,
+      },
+      {
+        id: `act-dep-${totalDays}-2`,
+        title: 'Tour Ends with Beautiful Kerala Memories',
+        category: 'Sightseeing',
         timing: 'Afternoon',
-        description: 'Chauffeur transfer to terminal as per flight / train schedule.',
+        description: 'Sweet memories of God’s Own Country with Travel Care Tours.',
         isSelected: true,
         isVerified: true,
       },
@@ -1065,7 +1166,7 @@ export const TripDetailsForm: React.FC<TripDetailsFormProps> = ({
           {onNavigateToWhatsappLeads && (
             <button
               type="button"
-              onClick={onNavigateToWhatsappLeads}
+              onClick={() => onNavigateToWhatsappLeads()}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-white/10 hover:bg-white/20 text-white transition-colors border border-white/20"
             >
               <MessageSquare className="w-3.5 h-3.5 text-emerald-400" />
@@ -1075,7 +1176,10 @@ export const TripDetailsForm: React.FC<TripDetailsFormProps> = ({
           {(onNavigateToActivities || onProceedToActivities) && (
             <button
               type="button"
-              onClick={onNavigateToActivities || onProceedToActivities}
+              onClick={() => {
+                if (onNavigateToActivities) onNavigateToActivities();
+                else if (onProceedToActivities) onProceedToActivities();
+              }}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-white/10 hover:bg-white/20 text-white transition-colors border border-white/20"
             >
               <CheckSquare className="w-3.5 h-3.5 text-teal-300" />
@@ -1085,7 +1189,7 @@ export const TripDetailsForm: React.FC<TripDetailsFormProps> = ({
           {onNavigateToPreview && (
             <button
               type="button"
-              onClick={onNavigateToPreview}
+              onClick={() => onNavigateToPreview()}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white transition-colors shadow-xs"
             >
               <Sparkles className="w-3.5 h-3.5 text-amber-300" />
@@ -1320,7 +1424,7 @@ export const TripDetailsForm: React.FC<TripDetailsFormProps> = ({
             />
             <button
               type="button"
-              onClick={handleAddCustomPlace}
+              onClick={() => handleAddCustomPlace()}
               className="bg-[#0B2545] hover:bg-[#07192F] text-white font-bold text-sm sm:text-base px-5 sm:px-6 py-2.5 sm:py-3 rounded-xl transition-all flex items-center gap-1.5 shrink-0 shadow-xs"
             >
               <Plus className="w-4 h-4 stroke-[2.5]" />
@@ -1485,18 +1589,20 @@ export const TripDetailsForm: React.FC<TripDetailsFormProps> = ({
               </div>
             </div>
 
-            <div>
-              <label className="block text-xs sm:text-sm font-bold text-slate-700 mb-1.5">
-                Children Age(s)
-              </label>
-              <input
-                type="text"
-                value={trip.childrenAges}
-                onChange={(e) => onUpdateTrip({ ...trip, childrenAges: e.target.value })}
-                className="w-full text-sm px-3.5 py-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-600 focus:outline-hidden font-medium"
-                placeholder="e.g. 3yr old"
-              />
-            </div>
+            {trip.childrenCount > 0 && (
+              <div className="animate-in fade-in slide-in-from-top-1 duration-150">
+                <label className="block text-xs sm:text-sm font-bold text-slate-700 mb-1.5">
+                  Children Age(s)
+                </label>
+                <input
+                  type="text"
+                  value={trip.childrenAges || ''}
+                  onChange={(e) => onUpdateTrip({ ...trip, childrenAges: e.target.value })}
+                  className="w-full text-sm px-3.5 py-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-600 focus:outline-hidden font-medium"
+                  placeholder="e.g. 3yr old"
+                />
+              </div>
+            )}
           </div>
         </div>
 
@@ -1521,7 +1627,7 @@ export const TripDetailsForm: React.FC<TripDetailsFormProps> = ({
                 {trip.pickupLocation ? trip.pickupLocation.split('(')[0].trim() : 'Pickup Point'}
               </span>
               <ArrowRight className="w-3.5 h-3.5 text-slate-400 shrink-0 mx-1" />
-              <Navigation className="w-4 h-4 text-teal-700 shrink-0" />
+              <Navigation className="w-4 h-4 text-rose-700 shrink-0" />
               <span className="font-semibold text-slate-900 truncate max-w-[140px] sm:max-w-[200px]">
                 {trip.dropoffLocation ? trip.dropoffLocation.split('(')[0].trim() : 'Drop-off Point'}
               </span>
@@ -1613,10 +1719,10 @@ export const TripDetailsForm: React.FC<TripDetailsFormProps> = ({
             </div>
 
             {/* Drop-off (Departure) Card */}
-            <div className="border border-teal-100 bg-teal-50/20 rounded-xl p-4 space-y-3">
+            <div className="border border-rose-100 bg-rose-50/20 rounded-xl p-4 space-y-3">
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 text-xs sm:text-sm font-bold text-teal-950 uppercase tracking-wide">
-                  <Navigation className="w-4 h-4 text-teal-700" />
+                <div className="flex items-center gap-2 text-xs sm:text-sm font-bold text-rose-950 uppercase tracking-wide">
+                  <Navigation className="w-4 h-4 text-rose-700" />
                   <span>Drop-off (Departure)</span>
                 </div>
               </div>
@@ -1632,7 +1738,7 @@ export const TripDetailsForm: React.FC<TripDetailsFormProps> = ({
                 placeholder="Select Drop-off Date"
                 rangeStart={trip.pickupDate}
                 rangeEnd={trip.dropoffDate}
-                theme="teal"
+                theme="rose"
                 helperText="Must be after pickup date. Updates stays & check-in dates"
                 errorMessage={
                   calculatedNightsFromDates !== null && calculatedNightsFromDates <= 0
@@ -1654,7 +1760,7 @@ export const TripDetailsForm: React.FC<TripDetailsFormProps> = ({
                         onUpdateTrip({ ...trip, dropoffLocation: e.target.value });
                       }
                     }}
-                    className="w-full text-sm px-3 py-2 border border-slate-300 rounded-lg bg-white font-medium text-slate-800 focus:ring-2 focus:ring-emerald-600 focus:outline-hidden"
+                    className="w-full text-sm px-3 py-2 border border-slate-300 rounded-lg bg-white font-medium text-slate-800 focus:ring-2 focus:ring-rose-600 focus:outline-hidden"
                   >
                     <option value="" disabled>Select Standard Hub...</option>
                     {LOCATION_OPTIONS.map((loc) => (
@@ -1667,7 +1773,7 @@ export const TripDetailsForm: React.FC<TripDetailsFormProps> = ({
                     type="text"
                     value={trip.dropoffLocation}
                     onChange={(e) => onUpdateTrip({ ...trip, dropoffLocation: e.target.value })}
-                    className="w-full text-sm px-3 py-2 border border-slate-300 rounded-lg bg-white focus:ring-2 focus:ring-emerald-600 focus:outline-hidden"
+                    className="w-full text-sm px-3 py-2 border border-slate-300 rounded-lg bg-white focus:ring-2 focus:ring-rose-600 focus:outline-hidden"
                     placeholder="Or type custom location/hotel..."
                   />
 
@@ -1685,8 +1791,8 @@ export const TripDetailsForm: React.FC<TripDetailsFormProps> = ({
                         onClick={() => onUpdateTrip({ ...trip, dropoffLocation: chip.value })}
                         className={`text-xs font-semibold px-2 py-1 rounded-md border transition-colors ${
                           trip.dropoffLocation === chip.value
-                            ? 'bg-teal-800 text-white border-teal-800'
-                            : 'bg-white text-slate-600 border-slate-200 hover:bg-teal-50 hover:text-teal-900'
+                            ? 'bg-rose-800 text-white border-rose-800'
+                            : 'bg-white text-slate-600 border-slate-200 hover:bg-rose-50 hover:text-rose-900'
                         }`}
                       >
                         {chip.label}
@@ -1855,7 +1961,7 @@ export const TripDetailsForm: React.FC<TripDetailsFormProps> = ({
               <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
                 <button
                   type="button"
-                  onClick={handleSyncCheckInDatesWithPickup}
+                  onClick={() => handleSyncCheckInDatesWithPickup()}
                   className="px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-semibold border border-emerald-300 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 transition-colors flex items-center gap-1.5"
                   title="Recalculate sequential check-in dates for all hotel stops based on Pickup Date"
                 >
@@ -2282,7 +2388,7 @@ export const TripDetailsForm: React.FC<TripDetailsFormProps> = ({
             {/* Defined purpose of Re-sync button: live changes are visible automatically; this button restores standard template defaults if custom edits need to be reset */}
             <button
               type="button"
-              onClick={handleManualResyncInclusions}
+              onClick={() => handleManualResyncInclusions()}
               className="text-xs sm:text-sm font-bold px-3 py-1.5 bg-slate-100 hover:bg-emerald-50 text-slate-700 hover:text-emerald-900 rounded-xl transition-colors border border-slate-200 flex items-center gap-1.5 shadow-2xs"
               title="Statements update automatically with vehicle and hotels. Use this Re-sync button if you manually edited or deleted text and want to restore the pristine standard package statements."
             >
@@ -2291,14 +2397,14 @@ export const TripDetailsForm: React.FC<TripDetailsFormProps> = ({
             </button>
             <button
               type="button"
-              onClick={handleAddInclusion}
+              onClick={() => handleAddInclusion()}
               className="text-xs sm:text-sm font-semibold px-3 py-1.5 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 rounded-xl transition-colors border border-emerald-200"
             >
               + Add Inclusion
             </button>
             <button
               type="button"
-              onClick={handleAddExclusion}
+              onClick={() => handleAddExclusion()}
               className="text-xs sm:text-sm font-semibold px-3 py-1.5 bg-rose-50 text-rose-800 hover:bg-rose-100 rounded-xl transition-colors border border-rose-200"
             >
               + Add Exclusion
@@ -2379,7 +2485,7 @@ export const TripDetailsForm: React.FC<TripDetailsFormProps> = ({
         </div>
         <button
           type="button"
-          onClick={onProceedToActivities}
+          onClick={() => onProceedToActivities?.()}
           className="px-6 py-3 text-xs sm:text-sm font-bold text-white bg-emerald-800 hover:bg-emerald-900 rounded-xl shadow-md transition-all hover:scale-[1.02]"
         >
           Manage Activities for This Trip →

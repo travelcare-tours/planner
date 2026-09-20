@@ -95,6 +95,9 @@ export const Navbar: React.FC<NavbarProps> = ({
               src={TC_LOGO_BASE64} 
               alt="Travel Care Tours" 
               className="h-8 sm:h-12 w-auto object-contain max-w-[170px] sm:max-w-[210px]"
+              onError={(e) => {
+                e.currentTarget.style.display = 'none';
+              }}
             />
           </div>
 

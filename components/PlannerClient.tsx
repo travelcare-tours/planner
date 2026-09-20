@@ -5,7 +5,8 @@ import {
   Navbar 
 } from '@/components/Navbar';
 import { 
-  TripDetailsForm 
+  TripDetailsForm,
+  syncDaysWithAccommodationsAndPickup 
 } from '@/components/TripDetailsForm';
 import { 
   WhatsappLeadsView 
@@ -116,7 +117,56 @@ export function PlannerClient({ initialTab = 'whatsapp-leads' }: PlannerClientPr
               return a;
             });
           }
+          // Migrate previous default locations to new standard defaults
+          if (!parsed.pickupLocation || parsed.pickupLocation === 'Kochi Airport (COK)') {
+            parsed.pickupLocation = 'Cochin International Airport (COK)';
+          }
+          if (!parsed.dropoffLocation || parsed.dropoffLocation === 'Kochi / Trivandrum Airport') {
+            parsed.dropoffLocation = 'Thiruvananthapuram International Airport (TRV)';
+          }
+          if (parsed.routeSummary && parsed.routeSummary.includes('Kochi / Trivandrum Airport')) {
+            parsed.routeSummary = parsed.routeSummary.replace('Kochi / Trivandrum Airport', 'Thiruvananthapuram International Airport (TRV)');
+          }
+
+          // Data Migration:
+          // 1. Update Alleppey Houseboat B2B price to ₹ 15,500 if still on older rates
+          if (Array.isArray(parsed.accommodations)) {
+            parsed.accommodations = parsed.accommodations.map((a: any) => {
+              const isHouseboat = a.destination?.toLowerCase().includes('alleppey') || a.hotelName?.toLowerCase().includes('houseboat');
+              if (isHouseboat && (a.b2bPrice === 6500 || a.b2bPrice === 7500 || !a.b2bPrice)) {
+                return { ...a, b2bPrice: 15500, b2bTotal: 15500 * (Number(a.nights) || 1) };
+              }
+              return a;
+            });
+
+            // 2. Remove redundant 2nd Kovalam row in default 6N itinerary to ensure 5N / 6D default
+            const kovalamIndices: number[] = [];
+            parsed.accommodations.forEach((item: any, idx: number) => {
+              if (item.destination?.toLowerCase().includes('kovalam')) {
+                kovalamIndices.push(idx);
+              }
+            });
+            if (kovalamIndices.length > 1 && (parsed.durationNights === 6 || parsed.accommodations.length >= 5)) {
+              parsed.accommodations = parsed.accommodations.filter((_: any, idx: number) => idx !== kovalamIndices[1]);
+              parsed.dropoffDate = '24th Sept 2026';
+            }
+
+            // 3. Keep days and nights accurately in sync
+            const totalNights = parsed.accommodations.reduce((sum: number, a: any) => sum + (Number(a.nights) || 1), 0);
+            parsed.durationNights = totalNights;
+            parsed.durationDays = totalNights + 1;
+            parsed.days = syncDaysWithAccommodationsAndPickup(
+              parsed.days || [],
+              parsed.accommodations,
+              parsed.pickupDate || '19th Sept 2026',
+              parsed.dropoffLocation || 'Thiruvananthapuram International Airport (TRV)'
+            );
+          }
+
           setTrip(parsed);
+          try {
+            localStorage.setItem('tct_planner_current_trip', JSON.stringify(parsed));
+          } catch (err) {}
         }
       } catch (e) {}
 
@@ -144,8 +194,65 @@ export function PlannerClient({ initialTab = 'whatsapp-leads' }: PlannerClientPr
   const [copiedWhatsApp, setCopiedWhatsApp] = useState<boolean>(false);
   const [isExportingPdf, setIsExportingPdf] = useState<boolean>(false);
   const [pdfZoom, setPdfZoom] = useState<number>(100);
+  const [isSyncingPdf, setIsSyncingPdf] = useState<boolean>(false);
+  const [pdfKey, setPdfKey] = useState<number>(0);
 
   const printRef = useRef<HTMLDivElement>(null);
+
+  // Synchronize PDF data directly from current state & storage as a backup
+  const handleSyncPdfData = () => {
+    setIsSyncingPdf(true);
+    try {
+      const savedTrip = localStorage.getItem('tct_planner_current_trip');
+      let baseTrip = savedTrip ? JSON.parse(savedTrip) : trip;
+      const totalNights = (baseTrip.accommodations || []).reduce(
+        (sum: number, a: any) => sum + (Number(a.nights) || 1),
+        0
+      );
+      const syncedDays = syncDaysWithAccommodationsAndPickup(
+        baseTrip.days || [],
+        baseTrip.accommodations || [],
+        baseTrip.pickupDate || '19th Sept 2026',
+        baseTrip.dropoffLocation || 'Thiruvananthapuram International Airport (TRV)'
+      );
+      const fullySyncedTrip: TripDetails = {
+        ...baseTrip,
+        durationNights: totalNights,
+        durationDays: syncedDays.length,
+        days: syncedDays,
+      };
+      setTrip(fullySyncedTrip);
+      try {
+        localStorage.setItem('tct_planner_current_trip', JSON.stringify(fullySyncedTrip));
+      } catch (err) {}
+    } catch (e) {
+      const totalNights = trip.accommodations.reduce(
+        (sum, a) => sum + (Number(a.nights) || 1),
+        0
+      );
+      const syncedDays = syncDaysWithAccommodationsAndPickup(
+        trip.days || [],
+        trip.accommodations,
+        trip.pickupDate,
+        trip.dropoffLocation
+      );
+      const updated: TripDetails = {
+        ...trip,
+        durationNights: totalNights,
+        durationDays: syncedDays.length,
+        days: syncedDays,
+      };
+      setTrip(updated);
+      try {
+        localStorage.setItem('tct_planner_current_trip', JSON.stringify(updated));
+      } catch (err) {}
+    }
+
+    setPdfKey((prev) => prev + 1);
+    setTimeout(() => {
+      setIsSyncingPdf(false);
+    }, 400);
+  };
 
   // Persist trip changes
   const handleUpdateTrip = (updated: TripDetails) => {
@@ -525,6 +632,17 @@ ${trip.days.map((d) => `*Day ${d.dayNumber} (${d.destination}):* ${d.activities.
 
                 <div className="flex items-center gap-2">
                   <button
+                    id="btn-sync-pdf-data"
+                    type="button"
+                    onClick={handleSyncPdfData}
+                    disabled={isSyncingPdf}
+                    className="p-2 text-emerald-800 bg-emerald-50 hover:bg-emerald-100 active:bg-emerald-200 border border-emerald-200 rounded-xl transition-all cursor-pointer shadow-2xs"
+                    title="Sync & Refresh PDF Data"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 text-emerald-800 ${isSyncingPdf ? 'animate-spin' : ''}`} />
+                  </button>
+
+                  <button
                     id="btn-preview-whatsapp"
                     type="button"
                     onClick={() => setShowWhatsAppModal(true)}
@@ -537,7 +655,11 @@ ${trip.days.map((d) => `*Day ${d.dayNumber} (${d.destination}):* ${d.activities.
                   <button
                     id="btn-download-pdf-file"
                     type="button"
-                    onClick={downloadPdfFile}
+                    onClick={() => {
+                      downloadPdfFile().catch((err) => {
+                        console.error('PDF download failed:', err);
+                      });
+                    }}
                     disabled={isExportingPdf}
                     className="flex items-center gap-1.5 px-3.5 sm:px-4 py-2 text-xs font-bold text-emerald-950 bg-emerald-100 hover:bg-emerald-200 border border-emerald-300 rounded-xl transition-colors cursor-pointer shadow-2xs"
                     title="Download PDF File"
@@ -583,7 +705,7 @@ ${trip.days.map((d) => `*Day ${d.dayNumber} (${d.destination}):* ${d.activities.
                   }}
                   className="pdf-template-container transition-transform duration-150 py-2 print:py-0 print:transform-none shrink-0"
                 >
-                  <PdfTemplate trip={trip} />
+                  <PdfTemplate key={pdfKey} trip={trip} />
                 </div>
               </div>
             </div>
@@ -641,10 +763,26 @@ ${trip.days.map((d) => `*Day ${d.dayNumber} (${d.destination}):* ${d.activities.
               <div className="flex justify-between items-center pt-2">
                 <button
                   type="button"
-                  onClick={() => {
-                    navigator.clipboard.writeText(generateWhatsAppMessage());
-                    setCopiedWhatsApp(true);
-                    setTimeout(() => setCopiedWhatsApp(false), 2000);
+                  onClick={async () => {
+                    try {
+                      const msg = generateWhatsAppMessage();
+                      if (typeof navigator !== 'undefined' && navigator.clipboard && navigator.clipboard.writeText) {
+                        await navigator.clipboard.writeText(msg);
+                      } else if (typeof document !== 'undefined') {
+                        const ta = document.createElement('textarea');
+                        ta.value = msg;
+                        ta.style.position = 'fixed';
+                        ta.style.opacity = '0';
+                        document.body.appendChild(ta);
+                        ta.select();
+                        document.execCommand('copy');
+                        document.body.removeChild(ta);
+                      }
+                      setCopiedWhatsApp(true);
+                      setTimeout(() => setCopiedWhatsApp(false), 2000);
+                    } catch (err) {
+                      console.warn('Failed to copy text:', err);
+                    }
                   }}
                   className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg"
                 >

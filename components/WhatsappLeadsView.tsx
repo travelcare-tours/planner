@@ -35,7 +35,8 @@ import {
   Navigation,
   ShieldCheck,
   RotateCcw,
-  Utensils
+  Utensils,
+  Info
 } from 'lucide-react';
 import { 
   DEFAULT_KERALA_DESTINATIONS,
@@ -216,18 +217,18 @@ export const WhatsappLeadsView: React.FC<WhatsappLeadsViewProps> = ({
   // Reorder mode for stop rearranging (hidden by default, toggled via button)
   const [isReorderMode, setIsReorderMode] = useState<boolean>(false);
 
-  // Children bedding preference
-  const [childBeddingPreference, setChildBeddingPreference] = useState<string>(
-    trip.childrenAges.toLowerCase().includes('bed') 
-      ? 'With Extra Mattress / Bed' 
-      : trip.childrenAges.toLowerCase().includes('infant')
-      ? 'Infant (Below 5 yrs)'
-      : 'Sharing Parent Bed (No Extra Bed)'
-  );
 
   // Costing & Margin state
   const [isCustomPickup, setIsCustomPickup] = useState<boolean>(() => !LOCATION_OPTIONS.includes(trip.pickupLocation));
   const [isCustomDropoff, setIsCustomDropoff] = useState<boolean>(() => !LOCATION_OPTIONS.includes(trip.dropoffLocation));
+
+  useEffect(() => {
+    setIsCustomPickup(!LOCATION_OPTIONS.includes(trip.pickupLocation));
+  }, [trip.pickupLocation]);
+
+  useEffect(() => {
+    setIsCustomDropoff(!LOCATION_OPTIONS.includes(trip.dropoffLocation));
+  }, [trip.dropoffLocation]);
 
   const [vehicleCost, setVehicleCost] = useState<number>(() => {
     return typeof trip.vehicleCharge === 'number' 
@@ -592,8 +593,8 @@ export const WhatsappLeadsView: React.FC<WhatsappLeadsViewProps> = ({
         nights: 1,
         mealPlan: isHouseboat ? 'AP (All Meals)' : defaultTourMealPlan,
         status: 'Confirmed',
-        b2bPrice: isHouseboat ? 6500 : 2800,
-        b2bTotal: isHouseboat ? 6500 : 2800,
+        b2bPrice: isHouseboat ? 15500 : 2800,
+        b2bTotal: isHouseboat ? 15500 : 2800,
       };
       const updatedAccs = recalculateSequentialCheckIns(trip.pickupDate, [...trip.accommodations, newAcc]);
       const totalNights = updatedAccs.reduce((sum, a) => sum + (a.nights || 1), 0);
@@ -742,8 +743,8 @@ export const WhatsappLeadsView: React.FC<WhatsappLeadsViewProps> = ({
           nights: stop.nights,
           mealPlan: isHouseboat ? 'AP (All Meals)' : detectedMealPlan,
           status: 'Confirmed',
-          b2bPrice: isHouseboat ? 6500 : 2800,
-          b2bTotal: (isHouseboat ? 6500 : 2800) * stop.nights,
+          b2bPrice: isHouseboat ? 15500 : 2800,
+          b2bTotal: (isHouseboat ? 15500 : 2800) * stop.nights,
         };
       });
     }
@@ -802,7 +803,7 @@ export const WhatsappLeadsView: React.FC<WhatsappLeadsViewProps> = ({
     }).join('\n');
 
     const childrenString = trip.childrenCount > 0 
-      ? ` + ${trip.childrenCount} Child${trip.childrenAges ? ` (${trip.childrenAges})` : ''} [${childBeddingPreference}]`
+      ? ` + ${trip.childrenCount} ${trip.childrenCount === 1 ? 'Child' : 'Children'}${trip.childrenAges ? ` (${trip.childrenAges})` : ''}`
       : '';
 
     const nonHb = trip.accommodations.find(
@@ -867,22 +868,43 @@ ${hotelLines}
     }, 400);
   };
 
-  // Handle copying WhatsApp quote
-  const handleCopyWhatsAppQuote = () => {
-    const text = generateAgentWhatsAppQuote();
-    navigator.clipboard.writeText(text);
-    setCopiedQuote(true);
-    setTimeout(() => setCopiedQuote(false), 2500);
+  // Handle copying WhatsApp quote with safe fallback
+  const handleCopyWhatsAppQuote = async () => {
+    try {
+      const text = generateAgentWhatsAppQuote();
+      if (typeof navigator !== 'undefined' && navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(text);
+      } else if (typeof document !== 'undefined') {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+      }
+      setCopiedQuote(true);
+      setTimeout(() => setCopiedQuote(false), 2500);
+    } catch (err) {
+      console.warn('Failed to copy WhatsApp quote:', err);
+    }
   };
 
   // Handle direct WhatsApp Web send
   const handleDirectWhatsAppSend = () => {
-    const text = encodeURIComponent(generateAgentWhatsAppQuote());
-    const phoneClean = agentPhoneInput.replace(/\D/g, '');
-    const url = phoneClean 
-      ? `https://wa.me/${phoneClean}?text=${text}`
-      : `https://wa.me/?text=${text}`;
-    window.open(url, '_blank');
+    try {
+      const text = encodeURIComponent(generateAgentWhatsAppQuote());
+      const phoneClean = agentPhoneInput.replace(/\D/g, '');
+      const url = phoneClean 
+        ? `https://wa.me/${phoneClean}?text=${text}`
+        : `https://wa.me/?text=${text}`;
+      if (typeof window !== 'undefined') {
+        window.open(url, '_blank');
+      }
+    } catch (err) {
+      console.warn('WhatsApp send error:', err);
+    }
   };
 
   return (
@@ -919,7 +941,7 @@ ${hotelLines}
 
           <button
             type="button"
-            onClick={handleCopyWhatsAppQuote}
+            onClick={() => handleCopyWhatsAppQuote()}
             className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 sm:gap-2 px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg sm:rounded-xl text-xs font-bold bg-emerald-500 hover:bg-emerald-400 text-emerald-950 transition-all shadow-xs active:scale-95 whitespace-nowrap"
           >
             {copiedQuote ? <Check className="w-3.5 h-3.5 sm:w-4 sm:h-4 stroke-[3]" /> : <Copy className="w-3.5 h-3.5 sm:w-4 sm:h-4" />}
@@ -943,7 +965,7 @@ ${hotelLines}
               {pasteInput && (
                 <button
                   type="button"
-                  onClick={handleClearLeadMessage}
+                  onClick={() => handleClearLeadMessage()}
                   className="text-[11px] sm:text-xs font-bold text-rose-700 hover:text-rose-900 bg-rose-50 hover:bg-rose-100 border border-rose-200 px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-lg transition-colors flex items-center gap-1"
                   title="Clear inquiry text to start fresh"
                 >
@@ -955,17 +977,19 @@ ${hotelLines}
           </div>
 
           <textarea
+            rows={3}
             value={pasteInput}
             onChange={(e) => handleUpdatePasteInput(e.target.value)}
-            placeholder="e.g. Need Kerala quote for 4N/5D: 2N Munnar, 1N Thekkady, 1N Alleppey Houseboat. 3-star hotels with breakfast, Sedan cab, 2 adults 1 child (4 yrs). Travel date: 15 Oct 2026..."
-            rows={3}
-            className="w-full bg-white border border-emerald-200 rounded-xl p-2.5 sm:p-3.5 text-xs sm:text-sm text-slate-800 placeholder:text-slate-400 focus:outline-hidden focus:ring-2 focus:ring-emerald-600 focus:border-transparent font-sans"
+            placeholder="Paste guest WhatsApp inquiry message here... (e.g. 2 adults 1 kid, 4 nights Munnar-Thekkady, dates 12 to 16 Nov, sedan cab)"
+            className="w-full bg-white border border-emerald-200 rounded-xl p-3 text-xs sm:text-sm text-slate-800 placeholder:text-slate-400 focus:outline-hidden focus:ring-2 focus:ring-emerald-700 font-mono"
           />
 
-          <div className="flex flex-wrap items-center justify-between gap-2.5 pt-1">
-            <div className="text-[11px] sm:text-xs text-slate-500">
-              Tip: Auto-extracts destinations, nights per stop, travel dates, fleet type, and kids.
+          <div className="flex items-center justify-between flex-wrap gap-2 pt-1 border-t border-emerald-200/60">
+            <div className="text-[11px] sm:text-xs text-emerald-900 flex items-center gap-1">
+              <Info className="w-3.5 h-3.5 shrink-0 text-emerald-700" />
+              <span>Auto-detects: Dates, Nights, Hubs (Munnar, Thekkady, etc.), Adults, Kids, Vehicle</span>
             </div>
+
             <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
               <button
                 type="button"
@@ -978,7 +1002,7 @@ ${hotelLines}
               </button>
               <button
                 type="button"
-                onClick={handleParseWhatsAppLead}
+                onClick={() => handleParseWhatsAppLead()}
                 className="bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg sm:rounded-xl shadow-xs transition-all flex items-center gap-1.5 active:scale-95"
               >
                 <Sparkles className="w-3.5 h-3.5" />
@@ -1007,7 +1031,7 @@ ${hotelLines}
             </button>
             <button
               type="button"
-              onClick={handleClearLeadMessage}
+              onClick={() => handleClearLeadMessage()}
               className="text-slate-400 hover:text-rose-600 p-1"
               title="Clear inquiry"
             >
@@ -1045,7 +1069,7 @@ ${hotelLines}
             />
             <button
               type="button"
-              onClick={handleNextSerialCode}
+              onClick={() => handleNextSerialCode()}
               className="h-10 sm:h-12 w-10 sm:w-11 bg-emerald-700 hover:bg-emerald-800 active:bg-emerald-900 text-white rounded-xl text-lg font-bold transition-all shadow-2xs shrink-0 flex items-center justify-center cursor-pointer"
               title="Next Serial (+1)"
             >
@@ -1056,7 +1080,7 @@ ${hotelLines}
 
         <div className="grid grid-cols-1 sm:grid-cols-12 gap-3.5 sm:gap-4">
           {/* Guest Name */}
-          <div className="sm:col-span-6 lg:col-span-4 space-y-1.5">
+          <div className="sm:col-span-6 lg:col-span-3 space-y-1.5">
             <div className="flex items-center justify-between">
               <label className="text-xs sm:text-sm font-bold text-slate-700">Guest Name</label>
               <span className="text-[10px] sm:text-xs text-emerald-700 font-bold">Default: Valued Guest</span>
@@ -1091,41 +1115,9 @@ ${hotelLines}
             </div>
           </div>
 
-          {/* Requirement 7: Adults & Children Selectors with counter buttons */}
+          {/* Vehicle Type (Brought before Adults count, with 'Sedan • SUV • 12-Seat' removed) */}
           <div className="sm:col-span-6 lg:col-span-3 space-y-1.5">
-            <label className="text-xs sm:text-sm font-bold text-slate-700 block">Adults Count</label>
-            <div className="flex items-center h-12 bg-slate-50/70 border border-slate-300 rounded-xl overflow-hidden shadow-2xs">
-              <button
-                type="button"
-                onClick={() => onUpdateTrip({ ...trip, adultsCount: Math.max(1, trip.adultsCount - 1) })}
-                className="w-11 h-full flex items-center justify-center text-slate-600 hover:bg-slate-200 transition-colors font-bold text-lg"
-              >
-                -
-              </button>
-              <input
-                type="number"
-                min={1}
-                max={50}
-                value={trip.adultsCount}
-                onChange={(e) => onUpdateTrip({ ...trip, adultsCount: Math.max(1, parseInt(e.target.value, 10) || 1) })}
-                className="flex-1 text-center font-bold text-slate-900 text-sm sm:text-base bg-transparent border-0 focus:ring-0 focus:outline-hidden"
-              />
-              <button
-                type="button"
-                onClick={() => onUpdateTrip({ ...trip, adultsCount: trip.adultsCount + 1 })}
-                className="w-11 h-full flex items-center justify-center text-slate-600 hover:bg-slate-200 transition-colors font-bold text-lg"
-              >
-                +
-              </button>
-            </div>
-          </div>
-
-          {/* Requirement 8: Vehicle Type (Dzire/Aspire, AC SUV, Traveller 12 Seater AC) */}
-          <div className="sm:col-span-6 lg:col-span-3 space-y-1.5">
-            <div className="flex items-center justify-between">
-              <label className="text-xs sm:text-sm font-bold text-slate-700">Vehicle Type</label>
-              <span className="text-[10px] sm:text-xs text-emerald-800 font-semibold">Sedan • SUV • 12-Seat</span>
-            </div>
+            <label className="text-xs sm:text-sm font-bold text-slate-700 block">Vehicle Type</label>
             <div className="relative">
               <Car className="w-4 h-4 sm:w-5 sm:h-5 text-slate-400 absolute left-3.5 top-3.5 pointer-events-none" />
               <select
@@ -1143,83 +1135,93 @@ ${hotelLines}
               </select>
             </div>
           </div>
-        </div>
 
-        {/* Requirement 11: Dedicated Section for Children */}
-        <div className="p-3.5 sm:p-5 bg-amber-50/60 border border-amber-200/90 rounded-xl sm:rounded-2xl space-y-2.5 sm:space-y-3">
-          <div className="flex items-center justify-between flex-wrap gap-2">
-            <div className="flex items-center gap-2 font-bold text-amber-950 text-xs sm:text-sm">
-              <Baby className="w-4 h-4 sm:w-5 sm:h-5 text-amber-700" />
-              <span>Children & Extra Bed Configuration</span>
-            </div>
-            <span className="text-[10px] sm:text-xs text-amber-800 font-medium">
-              Below 5 yrs complimentary in Kerala hotels
-            </span>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
-            {/* Children Count Stepper - Number first, then - & + */}
+          {/* Adults Count & Child Count - 1x1 Side-by-Side Grid */}
+          <div className="sm:col-span-6 lg:col-span-3 grid grid-cols-2 gap-2.5 sm:gap-3">
+            {/* Adults Count */}
             <div className="space-y-1.5">
-              <label className="text-xs sm:text-sm font-bold text-slate-700 block">Children Count</label>
-              <div className="flex items-center bg-white border border-slate-300 rounded-xl overflow-hidden shadow-2xs h-12 focus-within:ring-2 focus-within:ring-[#0B2545]">
-                <div className="relative flex-1 h-full flex items-center justify-center bg-white min-w-0">
-                  <input
-                    type="number"
-                    min={0}
-                    max={15}
-                    value={trip.childrenCount}
-                    onChange={(e) => onUpdateTrip({ ...trip, childrenCount: Math.max(0, parseInt(e.target.value, 10) || 0) })}
-                    className="w-full text-center text-lg sm:text-xl font-black text-slate-900 focus:outline-hidden bg-transparent"
-                  />
-                  <span className="text-[10px] text-slate-400 absolute right-1.5 font-bold pointer-events-none hidden sm:inline">Kids</span>
-                </div>
-                <div className="flex items-stretch h-full border-l border-slate-200 shrink-0">
-                  <button
-                    type="button"
-                    onClick={() => onUpdateTrip({ ...trip, childrenCount: Math.max(0, trip.childrenCount - 1) })}
-                    className="w-11 h-full flex items-center justify-center text-lg font-black text-slate-700 hover:bg-slate-100 active:bg-slate-200 border-r border-slate-200 transition-colors"
-                    title="Decrease children"
-                  >
-                    –
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => onUpdateTrip({ ...trip, childrenCount: trip.childrenCount + 1 })}
-                    className="w-11 h-full flex items-center justify-center text-lg font-black text-slate-700 hover:bg-slate-100 active:bg-slate-200 transition-colors"
-                    title="Increase children"
-                  >
-                    +
-                  </button>
-                </div>
+              <label className="text-xs sm:text-sm font-bold text-slate-700 block truncate">Adults Count</label>
+              <div className="flex items-center h-12 bg-slate-50/70 border border-slate-300 rounded-xl overflow-hidden shadow-2xs">
+                <button
+                  type="button"
+                  onClick={() => onUpdateTrip({ ...trip, adultsCount: Math.max(1, trip.adultsCount - 1) })}
+                  className="w-9 sm:w-10 h-full flex items-center justify-center text-slate-600 hover:bg-slate-200 active:bg-slate-300 transition-colors font-bold text-lg cursor-pointer shrink-0"
+                  title="Decrease adults"
+                >
+                  -
+                </button>
+                <input
+                  type="number"
+                  min={1}
+                  max={50}
+                  value={trip.adultsCount}
+                  onChange={(e) => onUpdateTrip({ ...trip, adultsCount: Math.max(1, parseInt(e.target.value, 10) || 1) })}
+                  className="w-full text-center font-bold text-slate-900 text-sm sm:text-base bg-transparent border-0 focus:ring-0 focus:outline-hidden p-0"
+                />
+                <button
+                  type="button"
+                  onClick={() => onUpdateTrip({ ...trip, adultsCount: trip.adultsCount + 1 })}
+                  className="w-9 sm:w-10 h-full flex items-center justify-center text-slate-600 hover:bg-slate-200 active:bg-slate-300 transition-colors font-bold text-lg cursor-pointer shrink-0"
+                  title="Increase adults"
+                >
+                  +
+                </button>
               </div>
             </div>
 
-            {/* Children Ages */}
+            {/* Child Count */}
             <div className="space-y-1.5">
-              <label className="text-xs sm:text-sm font-bold text-slate-700">Children Ages</label>
-              <input
-                type="text"
-                value={trip.childrenAges}
-                onChange={(e) => onUpdateTrip({ ...trip, childrenAges: e.target.value })}
-                placeholder="e.g. 4 yrs, 8 yrs"
-                className="w-full h-12 bg-white border border-slate-300 rounded-xl px-3.5 text-sm sm:text-base text-slate-900 font-medium focus:ring-2 focus:ring-[#0B2545] focus:outline-hidden shadow-2xs"
-              />
-            </div>
-
-            {/* Bedding Preference */}
-            <div className="space-y-1.5">
-              <label className="text-xs sm:text-sm font-bold text-slate-700">Bedding Arrangement</label>
-              <select
-                value={childBeddingPreference}
-                onChange={(e) => setChildBeddingPreference(e.target.value)}
-                className="w-full h-12 bg-white border border-slate-300 rounded-xl px-3.5 text-sm sm:text-base text-slate-900 font-medium focus:ring-2 focus:ring-[#0B2545] focus:outline-hidden cursor-pointer shadow-2xs"
-              >
-                <option value="Sharing Parent Bed (No Extra Bed)">Sharing Parent Bed (No Extra Bed)</option>
-                <option value="With Extra Mattress / Bed">With Extra Mattress / Bed</option>
-                <option value="Infant (Below 5 yrs - Complimentary)">Infant (Below 5 yrs - Complimentary)</option>
-              </select>
+              <label className="text-xs sm:text-sm font-bold text-slate-700 block truncate">Child Count</label>
+              <div className="flex items-center h-12 bg-slate-50/70 border border-slate-300 rounded-xl overflow-hidden shadow-2xs">
+                <button
+                  type="button"
+                  onClick={() => onUpdateTrip({ ...trip, childrenCount: Math.max(0, trip.childrenCount - 1) })}
+                  className="w-9 sm:w-10 h-full flex items-center justify-center text-slate-600 hover:bg-slate-200 active:bg-slate-300 transition-colors font-bold text-lg cursor-pointer shrink-0"
+                  title="Decrease children"
+                >
+                  -
+                </button>
+                <input
+                  type="number"
+                  min={0}
+                  max={20}
+                  value={trip.childrenCount}
+                  onChange={(e) => onUpdateTrip({ ...trip, childrenCount: Math.max(0, parseInt(e.target.value, 10) || 0) })}
+                  className="w-full text-center font-bold text-slate-900 text-sm sm:text-base bg-transparent border-0 focus:ring-0 focus:outline-hidden p-0"
+                />
+                <button
+                  type="button"
+                  onClick={() => onUpdateTrip({ ...trip, childrenCount: trip.childrenCount + 1 })}
+                  className="w-9 sm:w-10 h-full flex items-center justify-center text-slate-600 hover:bg-slate-200 active:bg-slate-300 transition-colors font-bold text-lg cursor-pointer shrink-0"
+                  title="Increase children"
+                >
+                  +
+                </button>
+              </div>
             </div>
           </div>
+
+          {/* Conditional Child Ages Entry (Only visible if childrenCount > 0) */}
+          {trip.childrenCount > 0 && (
+            <div className="sm:col-span-12 space-y-1.5 animate-in fade-in slide-in-from-top-1 duration-200">
+              <div className="flex items-center justify-between">
+                <label className="text-xs sm:text-sm font-bold text-slate-700 flex items-center gap-1.5">
+                  <Baby className="w-4 h-4 text-amber-700" />
+                  <span>Children Ages</span>
+                </label>
+                <span className="text-[10px] sm:text-xs text-amber-800 font-medium">
+                  Below 5 yrs complimentary in Kerala hotels
+                </span>
+              </div>
+              <input
+                type="text"
+                value={trip.childrenAges || ''}
+                onChange={(e) => onUpdateTrip({ ...trip, childrenAges: e.target.value })}
+                placeholder="e.g. 4 yrs, 8 yrs"
+                className="w-full h-12 bg-slate-50/70 border border-slate-300 rounded-xl px-3.5 text-sm sm:text-base text-slate-900 font-medium focus:bg-white focus:ring-2 focus:ring-[#0B2545] focus:outline-hidden transition-colors shadow-2xs"
+              />
+            </div>
+          )}
         </div>
 
         {/* Requirement 3 & 4: Pick-up & Drop-off Dates, Locations & Flight Times (Same UI as V1) */}
@@ -1311,13 +1313,13 @@ ${hotelLines}
           </div>
 
           {/* Drop-off Card */}
-          <div className="border border-teal-200 bg-teal-50/40 rounded-xl sm:rounded-2xl p-3.5 sm:p-5 space-y-3">
-            <div className="flex items-center justify-between border-b border-teal-200/70 pb-2.5">
-              <div className="flex items-center gap-2 text-xs sm:text-sm font-bold text-teal-950 uppercase tracking-wide">
-                <Navigation className="w-4 h-4 sm:w-5 sm:h-5 text-teal-700" />
+          <div className="border border-rose-200 bg-rose-50/40 rounded-xl sm:rounded-2xl p-3.5 sm:p-5 space-y-3">
+            <div className="flex items-center justify-between border-b border-rose-200/70 pb-2.5">
+              <div className="flex items-center gap-2 text-xs sm:text-sm font-bold text-rose-950 uppercase tracking-wide">
+                <Navigation className="w-4 h-4 sm:w-5 sm:h-5 text-rose-700" />
                 <span>Drop-off (Departure Details)</span>
               </div>
-              <span className="text-[10px] sm:text-xs font-bold text-teal-800 bg-teal-100 px-2.5 py-1 rounded-md">
+              <span className="text-[10px] sm:text-xs font-bold text-rose-800 bg-rose-100 px-2.5 py-1 rounded-md">
                 Day {trip.durationDays} End
               </span>
             </div>
@@ -1330,7 +1332,7 @@ ${hotelLines}
               value={trip.dropoffDate}
               onChange={(formatted) => handleDropoffDateChange(formatted)}
               placeholder="Select Drop-off Date"
-              theme="teal"
+              theme="rose"
             />
 
             <div className="space-y-1.5">
@@ -1348,7 +1350,7 @@ ${hotelLines}
                     onUpdateTrip({ ...trip, dropoffLocation: e.target.value });
                   }
                 }}
-                className="w-full h-11 sm:h-12 text-xs sm:text-sm px-3.5 border border-slate-300 rounded-xl bg-white font-medium text-slate-800 focus:ring-2 focus:ring-teal-600 focus:outline-hidden shadow-2xs cursor-pointer"
+                className="w-full h-11 sm:h-12 text-xs sm:text-sm px-3.5 border border-slate-300 rounded-xl bg-white font-medium text-slate-800 focus:ring-2 focus:ring-rose-600 focus:outline-hidden shadow-2xs cursor-pointer"
               >
                 {LOCATION_OPTIONS.map((loc) => (
                   <option key={loc} value={loc}>{loc}</option>
@@ -1362,7 +1364,7 @@ ${hotelLines}
                     type="text"
                     value={trip.dropoffLocation}
                     onChange={(e) => onUpdateTrip({ ...trip, dropoffLocation: e.target.value })}
-                    className="w-full h-10 sm:h-11 text-xs sm:text-sm px-3.5 border border-teal-400 bg-teal-50/40 rounded-xl font-medium text-slate-800 focus:bg-white focus:ring-2 focus:ring-teal-600 focus:outline-hidden shadow-2xs"
+                    className="w-full h-10 sm:h-11 text-xs sm:text-sm px-3.5 border border-rose-400 bg-rose-50/40 rounded-xl font-medium text-slate-800 focus:bg-white focus:ring-2 focus:ring-rose-600 focus:outline-hidden shadow-2xs"
                     placeholder="Enter custom drop-off hotel / airport / station name..."
                   />
                 </div>
@@ -1386,8 +1388,8 @@ ${hotelLines}
                     }}
                     className={`text-xs font-semibold px-2.5 py-1 min-h-[34px] rounded-lg border transition-colors flex items-center ${
                       trip.dropoffLocation === chip.value
-                        ? 'bg-teal-800 text-white border-teal-800'
-                        : 'bg-white text-slate-700 border-slate-200 hover:bg-teal-50 active:bg-teal-100'
+                        ? 'bg-rose-800 text-white border-rose-800'
+                        : 'bg-white text-slate-700 border-slate-200 hover:bg-rose-50 active:bg-rose-100'
                     }`}
                   >
                     {chip.label}
@@ -1463,7 +1465,7 @@ ${hotelLines}
             />
             <button
               type="button"
-              onClick={handleAddCustomPlace}
+              onClick={() => handleAddCustomPlace()}
               className="bg-[#0B2545] hover:bg-[#07192F] text-white font-bold text-xs px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-lg sm:rounded-xl transition-all flex items-center gap-1 shrink-0"
             >
               <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
@@ -1546,7 +1548,7 @@ ${hotelLines}
 
             <button
               type="button"
-              onClick={handleAddHotelRow}
+              onClick={() => handleAddHotelRow()}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs sm:text-sm font-bold bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 text-emerald-900 transition-all shadow-2xs whitespace-nowrap min-h-[40px]"
             >
               <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
@@ -1588,30 +1590,30 @@ ${hotelLines}
           </div>
         </div>
 
-        {/* Table View (Desktop >= 1024px) */}
-        <div className="hidden lg:block overflow-x-auto rounded-xl border border-slate-200 shadow-2xs">
-          <table className="w-full text-left text-xs border-collapse">
+        {/* Table View (Desktop >= 1024px) - Spacious, Enlarged Layout */}
+        <div className="hidden lg:block overflow-x-auto rounded-2xl border border-slate-200 shadow-xs bg-white">
+          <table className="w-full text-left text-sm border-collapse">
             <thead>
-              <tr className="bg-slate-50/90 text-slate-700 font-extrabold border-b border-slate-200">
+              <tr className="bg-slate-50 text-slate-800 font-extrabold border-b border-slate-200 text-xs uppercase tracking-wider">
                 {isReorderMode ? (
-                  <th className="py-3 px-2 w-28 text-center bg-amber-50/70 text-amber-950 font-black">
+                  <th className="py-4 px-3 w-32 text-center bg-amber-50/80 text-amber-950 font-black">
                     Rearrange
                   </th>
                 ) : (
-                  <th className="py-3 px-2 w-12 text-center">#</th>
+                  <th className="py-4 px-3 w-14 text-center text-slate-600">#</th>
                 )}
-                <th className="py-3 px-3 w-36">Destination</th>
-                <th className="py-3 px-3 min-w-[200px]">Hotel Name (Manual / Suggestion)</th>
-                <th className="py-3 px-3 min-w-[140px]">Room Category</th>
+                <th className="py-4 px-4 w-44">Destination</th>
+                <th className="py-4 px-4 min-w-[240px]">Hotel Name (Manual / Suggestion)</th>
+                <th className="py-4 px-4 min-w-[170px]">Room Category</th>
                 {/* Requirement 6: Mathematically validated Check-in date */}
-                <th className="py-3 px-3 w-32">Check-in Date</th>
-                <th className="py-3 px-3 w-20 text-center">Nights</th>
+                <th className="py-4 px-4 w-36">Check-in Date</th>
+                <th className="py-4 px-4 w-28 text-center">Nights</th>
                 {showMealPlanCol && (
-                  <th className="py-3 px-3 min-w-[140px] bg-emerald-50/70 text-emerald-950 font-bold">Meal Plan</th>
+                  <th className="py-4 px-4 min-w-[160px] bg-emerald-50 text-emerald-950 font-bold">Meal Plan</th>
                 )}
                 {/* Requirement 6: B2B Price kept, Total column removed */}
-                <th className="py-3 px-3 w-32 text-right font-black text-emerald-900">B2B Price (₹)</th>
-                <th className="py-3 px-2 w-10 text-center"></th>
+                <th className="py-4 px-4 w-36 text-right font-black text-emerald-900">B2B Price (₹)</th>
+                <th className="py-4 px-3 w-12 text-center"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -1621,61 +1623,61 @@ ${hotelLines}
                 const isLast = index === trip.accommodations.length - 1;
 
                 return (
-                  <tr key={acc.id ? `${acc.id}-${index}` : `acc-${index}`} className="hover:bg-slate-50/70 transition-colors">
+                  <tr key={acc.id ? `${acc.id}-${index}` : `acc-${index}`} className="hover:bg-slate-50/80 transition-colors">
                     {/* Rearrange column / compact index */}
                     {isReorderMode ? (
-                      <td className="py-2.5 px-2 text-center bg-amber-50/30">
-                        <div className="inline-flex items-center gap-1 bg-white p-1 rounded-lg border border-amber-300 shadow-2xs">
+                      <td className="py-3 px-3 text-center bg-amber-50/30">
+                        <div className="inline-flex items-center gap-1.5 bg-white p-1 rounded-xl border border-amber-300 shadow-2xs">
                           <button
                             type="button"
                             disabled={isFirst}
                             onClick={() => handleMoveHotelRow(index, 'up')}
-                            className="p-1 rounded bg-slate-50 hover:bg-slate-200 text-slate-700 disabled:opacity-30 disabled:hover:bg-slate-50 transition-colors"
+                            className="p-1.5 rounded-lg bg-slate-50 hover:bg-slate-200 text-slate-700 disabled:opacity-30 disabled:hover:bg-slate-50 transition-colors cursor-pointer"
                             title="Move Stop Up (changes route sequence)"
                           >
-                            <ArrowUp className="w-3 h-3" />
+                            <ArrowUp className="w-3.5 h-3.5" />
                           </button>
-                          <span className="text-[11px] font-black text-slate-800 px-1">
+                          <span className="text-xs font-black text-slate-800 px-1">
                             #{index + 1}
                           </span>
                           <button
                             type="button"
                             disabled={isLast}
                             onClick={() => handleMoveHotelRow(index, 'down')}
-                            className="p-1 rounded bg-slate-50 hover:bg-slate-200 text-slate-700 disabled:opacity-30 disabled:hover:bg-slate-50 transition-colors"
+                            className="p-1.5 rounded-lg bg-slate-50 hover:bg-slate-200 text-slate-700 disabled:opacity-30 disabled:hover:bg-slate-50 transition-colors cursor-pointer"
                             title="Move Stop Down (changes route sequence)"
                           >
-                            <ArrowDown className="w-3 h-3" />
+                            <ArrowDown className="w-3.5 h-3.5" />
                           </button>
                         </div>
                       </td>
                     ) : (
-                      <td className="py-2.5 px-2 text-center">
-                        <span className="inline-flex items-center justify-center w-6 h-6 rounded-md bg-slate-100 font-black text-slate-700 text-[11px]">
+                      <td className="py-3.5 px-3 text-center">
+                        <span className="inline-flex items-center justify-center w-7 h-7 rounded-lg bg-slate-100 font-black text-slate-700 text-xs">
                           #{index + 1}
                         </span>
                       </td>
                     )}
 
                     {/* Destination */}
-                    <td className="py-2.5 px-3 font-extrabold text-slate-900">
+                    <td className="py-3.5 px-4 font-extrabold text-slate-900">
                       <input
                         type="text"
                         value={acc.destination}
                         onChange={(e) => handleUpdateHotelRow(index, 'destination', e.target.value)}
-                        className="w-full bg-transparent border-0 font-extrabold text-slate-900 focus:outline-hidden focus:bg-white focus:ring-1 focus:ring-slate-300 rounded px-1.5 py-0.5"
+                        className="w-full h-10 bg-slate-50/70 hover:bg-slate-100/70 border border-slate-200/80 font-extrabold text-slate-900 focus:outline-hidden focus:bg-white focus:ring-2 focus:ring-[#0B2545] rounded-xl px-3 text-sm transition-all"
                       />
                     </td>
 
                     {/* Hotel Name */}
-                    <td className="py-2.5 px-3">
+                    <td className="py-3.5 px-4">
                       <input
                         type="text"
                         list={`hotel-sug-${index}`}
                         value={acc.hotelName}
                         onChange={(e) => handleUpdateHotelRow(index, 'hotelName', e.target.value)}
                         placeholder="Type hotel name..."
-                        className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 font-bold focus:outline-hidden focus:ring-2 focus:ring-[#0B2545]"
+                        className="w-full h-10 bg-white border border-slate-300 rounded-xl px-3.5 text-sm text-slate-900 font-bold focus:outline-hidden focus:ring-2 focus:ring-[#0B2545] shadow-2xs"
                       />
                       <datalist id={`hotel-sug-${index}`}>
                         {suggestions.map((s) => (
@@ -1685,41 +1687,41 @@ ${hotelLines}
                     </td>
 
                     {/* Room Category */}
-                    <td className="py-2.5 px-3">
+                    <td className="py-3.5 px-4">
                       <input
                         type="text"
                         value={acc.roomCategory}
                         onChange={(e) => handleUpdateHotelRow(index, 'roomCategory', e.target.value)}
                         placeholder="Deluxe Room"
-                        className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 font-medium focus:outline-hidden focus:ring-2 focus:ring-[#0B2545]"
+                        className="w-full h-10 bg-white border border-slate-300 rounded-xl px-3.5 text-sm text-slate-800 font-medium focus:outline-hidden focus:ring-2 focus:ring-[#0B2545] shadow-2xs"
                       />
                     </td>
 
                     {/* Requirement 6: Check-in Date validated via number of nights spent */}
-                    <td className="py-2.5 px-3 text-slate-700">
-                      <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 px-2 py-1.5 rounded-lg text-xs font-semibold">
-                        <Calendar className="w-3.5 h-3.5 text-emerald-700 shrink-0" />
+                    <td className="py-3.5 px-4 text-slate-700">
+                      <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 h-10 px-3 rounded-xl text-xs font-bold text-slate-800">
+                        <Calendar className="w-4 h-4 text-emerald-700 shrink-0" />
                         <span className="truncate">{acc.checkInDate || 'Auto-Calculated'}</span>
                       </div>
                     </td>
 
                     {/* Nights */}
-                    <td className="py-2.5 px-3 text-center">
-                      <div className="inline-flex items-center bg-white border border-slate-200 rounded-lg overflow-hidden">
+                    <td className="py-3.5 px-4 text-center">
+                      <div className="inline-flex items-center bg-white border border-slate-300 rounded-xl overflow-hidden h-10 shadow-2xs">
                         <button
                           type="button"
                           onClick={() => handleUpdateHotelRow(index, 'nights', Math.max(1, (acc.nights || 1) - 1))}
-                          className="px-2 py-1 text-xs font-black text-slate-600 hover:bg-slate-100"
+                          className="w-8 h-full flex items-center justify-center text-sm font-black text-slate-600 hover:bg-slate-100 active:bg-slate-200 transition-colors cursor-pointer"
                         >
                           –
                         </button>
-                        <span className="px-2 py-1 font-black text-slate-900 text-xs min-w-[24px] text-center">
+                        <span className="px-2 font-black text-slate-900 text-sm min-w-[32px] text-center">
                           {acc.nights || 1}N
                         </span>
                         <button
                           type="button"
                           onClick={() => handleUpdateHotelRow(index, 'nights', (acc.nights || 1) + 1)}
-                          className="px-2 py-1 text-xs font-black text-slate-600 hover:bg-slate-100"
+                          className="w-8 h-full flex items-center justify-center text-sm font-black text-slate-600 hover:bg-slate-100 active:bg-slate-200 transition-colors cursor-pointer"
                         >
                           +
                         </button>
@@ -1728,11 +1730,11 @@ ${hotelLines}
 
                     {/* Meal Plan (Optional - toggled via button) */}
                     {showMealPlanCol && (
-                      <td className="py-2.5 px-3 bg-emerald-50/20">
+                      <td className="py-3.5 px-4 bg-emerald-50/30">
                         <select
                           value={acc.mealPlan}
                           onChange={(e) => handleUpdateHotelRow(index, 'mealPlan', e.target.value)}
-                          className="w-full bg-white border border-emerald-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 font-semibold focus:outline-hidden focus:ring-1 focus:ring-emerald-700"
+                          className="w-full h-10 bg-white border border-emerald-300 rounded-xl px-3 text-xs font-bold text-slate-800 focus:outline-hidden focus:ring-2 focus:ring-emerald-700 cursor-pointer shadow-2xs"
                         >
                           {MEAL_PLANS.map((mp) => (
                             <option key={mp} value={mp}>{mp}</option>
@@ -1742,30 +1744,30 @@ ${hotelLines}
                     )}
 
                     {/* B2B Cost Price */}
-                    <td className="py-2.5 px-3 text-right">
-                      <div className="flex items-center justify-end gap-1">
-                        <span className="text-slate-400 font-medium">₹</span>
+                    <td className="py-3.5 px-4 text-right">
+                      <div className="flex items-center justify-end gap-1.5">
+                        <span className="text-slate-400 font-bold text-sm">₹</span>
                         <input
                           type="number"
                           step={100}
                           value={acc.b2bPrice ?? ''}
                           onChange={(e) => handleUpdateHotelRow(index, 'b2bPrice', e.target.value)}
                           placeholder="0"
-                          className="w-24 text-right bg-emerald-50/50 border border-emerald-300 rounded-lg px-2 py-1.5 text-xs font-black text-emerald-950 focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-emerald-600"
+                          className="w-28 h-10 text-right bg-emerald-50/60 border border-emerald-300 rounded-xl px-3 text-sm font-black text-emerald-950 focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-emerald-600 shadow-2xs"
                         />
                       </div>
                     </td>
 
                     {/* Delete action */}
-                    <td className="py-2.5 px-2 text-center">
+                    <td className="py-3.5 px-3 text-center">
                       <button
                         type="button"
                         disabled={trip.accommodations.length <= 1}
                         onClick={() => handleRemoveHotelRow(index)}
-                        className="p-1 rounded-md text-slate-400 hover:text-rose-600 hover:bg-rose-50 disabled:opacity-20 transition-colors"
+                        className="p-2 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 disabled:opacity-20 transition-colors cursor-pointer"
                         title="Remove night row"
                       >
-                        <Trash2 className="w-3.5 h-3.5" />
+                        <Trash2 className="w-4 h-4" />
                       </button>
                     </td>
                   </tr>
@@ -2260,7 +2262,7 @@ ${hotelLines}
                 />
                 <button
                   type="button"
-                  onClick={handleDirectWhatsAppSend}
+                  onClick={() => handleDirectWhatsAppSend()}
                   className="bg-emerald-500 hover:bg-emerald-400 text-emerald-950 font-bold text-xs px-3 sm:px-3.5 py-1.5 sm:py-2 rounded-lg sm:rounded-xl transition-all flex items-center gap-1.5 shrink-0 shadow-xs active:scale-95"
                 >
                   <Send className="w-3.5 h-3.5" />
@@ -2274,7 +2276,7 @@ ${hotelLines}
           <div className="space-y-2 pt-3 border-t border-white/10">
             <button
               type="button"
-              onClick={handleCopyWhatsAppQuote}
+              onClick={() => handleCopyWhatsAppQuote()}
               className="w-full py-2.5 sm:py-3 px-3 sm:px-4 rounded-lg sm:rounded-xl font-black text-xs sm:text-sm bg-emerald-500 hover:bg-emerald-400 text-emerald-950 transition-all shadow-md flex items-center justify-center gap-2 active:scale-98"
             >
               {copiedQuote ? <Check className="w-4 h-4 stroke-[3]" /> : <Copy className="w-4 h-4" />}
@@ -2284,7 +2286,7 @@ ${hotelLines}
             <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"
-                onClick={onNavigateToActivities}
+                onClick={() => onNavigateToActivities?.()}
                 className="py-2 px-2.5 rounded-lg sm:rounded-xl font-bold text-[11px] sm:text-xs bg-white/10 hover:bg-white/20 border border-white/20 text-white transition-all flex items-center justify-center gap-1"
               >
                 <CheckSquare className="w-3.5 h-3.5 text-teal-300" />
@@ -2293,7 +2295,7 @@ ${hotelLines}
 
               <button
                 type="button"
-                onClick={onNavigateToPreview}
+                onClick={() => onNavigateToPreview?.()}
                 className="py-2 px-2.5 rounded-lg sm:rounded-xl font-bold text-[11px] sm:text-xs bg-white/10 hover:bg-white/20 border border-white/20 text-white transition-all flex items-center justify-center gap-1"
               >
                 <Printer className="w-3.5 h-3.5 text-amber-300" />
@@ -2320,7 +2322,7 @@ ${hotelLines}
           <div className="flex items-center gap-1.5 sm:gap-2">
             <button
               type="button"
-              onClick={handleRefreshLiveQuote}
+              onClick={() => handleRefreshLiveQuote()}
               disabled={isRefreshing}
               className="px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-bold text-emerald-900 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 transition-all flex items-center gap-1 sm:gap-1.5 shadow-2xs active:scale-95"
               title="Refresh and sync quote"
@@ -2331,7 +2333,7 @@ ${hotelLines}
 
             <button
               type="button"
-              onClick={handleCopyWhatsAppQuote}
+              onClick={() => handleCopyWhatsAppQuote()}
               className="text-[11px] sm:text-xs font-bold text-emerald-700 hover:text-emerald-900 flex items-center gap-1 px-2 sm:px-2.5 py-1 sm:py-1.5 bg-slate-100 hover:bg-slate-200 rounded-lg sm:rounded-xl transition-colors"
             >
               <Copy className="w-3 h-3 sm:w-3.5 sm:h-3.5" />

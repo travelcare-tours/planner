@@ -88,6 +88,9 @@ const PageHeader: React.FC<{ pageNum?: number }> = () => (
         alt="Travel Care Tours Pvt Ltd" 
         className="h-14 sm:h-16 w-auto object-contain max-h-18"
         style={{ height: '56px', width: 'auto', maxHeight: '56px', objectFit: 'contain' }}
+        onError={(e) => {
+          e.currentTarget.style.display = 'none';
+        }}
       />
     </div>
 
@@ -153,8 +156,8 @@ export const PdfTemplate: React.FC<PdfTemplateProps> = ({ trip }) => {
   const advance100 = netAmount;
 
   // Statutory UPI limit: UPI transactions are capped at ₹ 1,00,000 (1 Lakh).
-  // If the advance amount or net amount exceeds 1 Lakh, hide QR and UPI pay button.
-  const isUpiEligible = advance70 < 100000 && netAmount <= 100000;
+  // If the advance amount exceeds 1 Lakh, hide QR and UPI pay button.
+  const isUpiEligible = advance70 > 0 && advance70 <= 100000;
 
   const upiId = 'Vyapar.175694334138@hdfcbank';
   const payeeName = 'TRAVEL CARE TOURS PVT LTD';
@@ -173,10 +176,7 @@ export const PdfTemplate: React.FC<PdfTemplateProps> = ({ trip }) => {
         if (isMounted) setQrCodeDataUrl(url);
       })
       .catch((err) => {
-        console.warn('QR Code generation fallback:', err);
-        if (isMounted) {
-          setQrCodeDataUrl(`https://api.qrserver.com/v1/create-qr-code/?size=280x280&data=${encodeURIComponent(upiPayLink)}`);
-        }
+        console.warn('QR Code generation error:', err);
       });
     return () => {
       isMounted = false;
@@ -222,7 +222,13 @@ export const PdfTemplate: React.FC<PdfTemplateProps> = ({ trip }) => {
     <div 
       id="pdf-template-container"
       className="pdf-template-container w-[210mm] mx-auto bg-white text-slate-900 font-sans print:p-0 print:m-0 print:w-[210mm]"
-      style={{ width: '210mm', maxWidth: '210mm', aspectRatio: '1/1.414', objectFit: 'contain' }}
+      style={{
+        width: '210mm',
+        maxWidth: '210mm',
+        aspectRatio: '1/1.414',
+        objectFit: 'contain',
+        fontFamily: 'ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+      }}
     >
       {/* =========================================================================
           PAGE 1: SECTION 1 - COVER / TITLE PAGE
@@ -283,7 +289,7 @@ export const PdfTemplate: React.FC<PdfTemplateProps> = ({ trip }) => {
               <div className="text-right text-xs text-slate-600">
                 <div>
                   Pax: <strong className="text-slate-900">
-                    {trip.adultsCount} Adults {trip.childrenCount > 0 ? `+ ${trip.childrenCount} Child${trip.childrenAges ? ` (${trip.childrenAges})` : ''}` : ''}
+                    {trip.adultsCount} Adults {trip.childrenCount > 0 ? `+ ${trip.childrenCount} ${trip.childrenCount === 1 ? 'Child' : 'Children'}${trip.childrenAges ? ` (${trip.childrenAges})` : ''}` : ''}
                   </strong>
                 </div>
                 {trip.guestContact && <div>Contact: <span className="font-mono text-slate-800">{trip.guestContact}</span></div>}
@@ -811,6 +817,9 @@ export const PdfTemplate: React.FC<PdfTemplateProps> = ({ trip }) => {
                           src={qrCodeDataUrl} 
                           alt="Scan or Tap UPI QR to Pay Advance" 
                           className="w-28 h-28 object-contain rounded-md border border-emerald-800/20 p-1 mb-1.5 bg-white shadow-2xs hover:scale-105 transition-transform"
+                          onError={(e) => {
+                            e.currentTarget.style.display = 'none';
+                          }}
                         />
                       </a>
                     ) : (

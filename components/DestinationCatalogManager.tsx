@@ -120,7 +120,7 @@ export const DestinationCatalogManager: React.FC<DestinationCatalogManagerProps>
 
         <div className="flex items-center gap-2">
           <button
-            onClick={handleResetCatalog}
+            onClick={() => handleResetCatalog()}
             className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors"
             title="Reset to initial Kerala package catalog"
           >

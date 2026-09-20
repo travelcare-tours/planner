@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { 
   CheckSquare, 
   Square, 
@@ -16,9 +16,11 @@ import {
   AlertCircle,
   HelpCircle,
   RotateCcw,
+  RefreshCw,
   Tag
 } from 'lucide-react';
 import { TripDetails, DayItinerary, ActivityItem, DestinationCatalogItem } from '@/types/itinerary';
+import { syncDaysWithAccommodationsAndPickup } from '@/components/TripDetailsForm';
 
 interface ActivityManagerProps {
   trip: TripDetails;
@@ -42,6 +44,76 @@ export const ActivityManager: React.FC<ActivityManagerProps> = ({
     setTimeout(() => {
       customizationSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }, 40);
+  };
+
+  const [isSyncingAll, setIsSyncingAll] = useState<boolean>(false);
+
+  // Auto-sync days with accommodations if day count or destinations mismatch
+  useEffect(() => {
+    const totalNights = trip.accommodations.reduce((sum, a) => sum + (Number(a.nights) || 1), 0);
+    const expectedDaysCount = totalNights + 1;
+
+    // Check if destinations for each day match current accommodation schedule
+    let destinationsMatch = true;
+    if (trip.days && trip.days.length === expectedDaysCount) {
+      let dIdx = 0;
+      for (const acc of trip.accommodations) {
+        const n = Math.max(1, Number(acc.nights) || 1);
+        const normAccDest = (acc.destination || '').trim().toLowerCase();
+        for (let i = 0; i < n; i++) {
+          const day = trip.days[dIdx];
+          const normDayDest = (day?.destination || '').trim().toLowerCase();
+          if (
+            !day ||
+            !normDayDest ||
+            (!normDayDest.includes(normAccDest) && !normAccDest.includes(normDayDest))
+          ) {
+            destinationsMatch = false;
+            break;
+          }
+          dIdx++;
+        }
+        if (!destinationsMatch) break;
+      }
+    } else {
+      destinationsMatch = false;
+    }
+
+    if (!destinationsMatch || !trip.days || trip.days.length !== expectedDaysCount) {
+      const synced = syncDaysWithAccommodationsAndPickup(
+        trip.days || [],
+        trip.accommodations,
+        trip.pickupDate,
+        trip.dropoffLocation
+      );
+      onUpdateTrip({
+        ...trip,
+        durationNights: totalNights,
+        durationDays: synced.length,
+        days: synced,
+      });
+    }
+  }, [trip.accommodations, trip.pickupDate, trip.dropoffLocation]);
+
+  // One-click manual sync of all days and activities directly from current stay destinations
+  const handleSyncAllDaysFromDestinations = () => {
+    setIsSyncingAll(true);
+    const totalNights = trip.accommodations.reduce((sum, a) => sum + (a.nights || 1), 0);
+    const updatedDays = syncDaysWithAccommodationsAndPickup(
+      trip.days || [],
+      trip.accommodations,
+      trip.pickupDate,
+      trip.dropoffLocation
+    );
+    onUpdateTrip({
+      ...trip,
+      durationNights: totalNights,
+      durationDays: updatedDays.length,
+      days: updatedDays,
+    });
+    setTimeout(() => {
+      setIsSyncingAll(false);
+    }, 400);
   };
 
   const [showAddModal, setShowAddModal] = useState<boolean>(false);
@@ -207,8 +279,18 @@ export const ActivityManager: React.FC<ActivityManagerProps> = ({
               <div className="text-[11px] text-emerald-200 uppercase font-medium">Available</div>
             </div>
             <button
-              onClick={onNavigateToPreview}
-              className="ml-2 px-4 py-2 bg-emerald-400 hover:bg-emerald-300 text-emerald-950 font-bold text-xs rounded-lg transition-all shadow-sm shadow-emerald-950/30 whitespace-nowrap"
+              type="button"
+              onClick={() => handleSyncAllDaysFromDestinations()}
+              disabled={isSyncingAll}
+              className="flex items-center gap-1.5 px-3.5 py-2 bg-white/20 hover:bg-white/30 text-white font-bold text-xs rounded-lg transition-all border border-white/25 whitespace-nowrap cursor-pointer"
+              title="Re-synchronize all days and activities directly from current stay destinations"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 text-emerald-300 ${isSyncingAll ? 'animate-spin' : ''}`} />
+              <span>Sync from Destinations</span>
+            </button>
+            <button
+              onClick={() => onNavigateToPreview()}
+              className="ml-1 px-4 py-2 bg-emerald-400 hover:bg-emerald-300 text-emerald-950 font-bold text-xs rounded-lg transition-all shadow-sm shadow-emerald-950/30 whitespace-nowrap"
             >
               Preview in PDF →
             </button>

@@ -25,7 +25,7 @@ interface DatePickerProps {
   id?: string;
   className?: string;
   badgeText?: string;
-  theme?: 'emerald' | 'teal';
+  theme?: 'emerald' | 'teal' | 'red' | 'rose';
   helperText?: string;
   errorMessage?: string;
 }
@@ -267,10 +267,32 @@ export default function DatePicker({
     }
   };
 
-  const themePrimaryBg = theme === 'teal' ? 'bg-teal-800 hover:bg-teal-900' : 'bg-emerald-800 hover:bg-emerald-900';
-  const themeSelectedBg = theme === 'teal' ? 'bg-teal-800 text-white' : 'bg-emerald-800 text-white';
-  const themeRangeBg = theme === 'teal' ? 'bg-teal-100/60 text-teal-950' : 'bg-emerald-100/60 text-emerald-950';
-  const themeBorderFocus = theme === 'teal' ? 'focus:ring-teal-600 border-teal-500' : 'focus:ring-emerald-600 border-emerald-500';
+  const isRose = theme === 'rose' || theme === 'red';
+  const isTeal = theme === 'teal';
+
+  const themePrimaryBg = isRose
+    ? 'bg-rose-800 hover:bg-rose-900'
+    : isTeal
+    ? 'bg-teal-800 hover:bg-teal-900'
+    : 'bg-emerald-800 hover:bg-emerald-900';
+
+  const themeSelectedBg = isRose
+    ? 'bg-rose-800 text-white'
+    : isTeal
+    ? 'bg-teal-800 text-white'
+    : 'bg-emerald-800 text-white';
+
+  const themeRangeBg = isRose
+    ? 'bg-rose-100/60 text-rose-950'
+    : isTeal
+    ? 'bg-teal-100/60 text-teal-950'
+    : 'bg-emerald-100/60 text-emerald-950';
+
+  const themeBorderFocus = isRose
+    ? 'focus:ring-rose-600 border-rose-500'
+    : isTeal
+    ? 'focus:ring-teal-600 border-teal-500'
+    : 'focus:ring-emerald-600 border-emerald-500';
 
   return (
     <div className={`relative ${className}`} ref={containerRef} id={id}>
@@ -281,7 +303,11 @@ export default function DatePicker({
           </label>
           {badgeText && (
             <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md ${
-              theme === 'teal' ? 'bg-teal-50 text-teal-800 border border-teal-200' : 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+              isRose
+                ? 'bg-rose-50 text-rose-800 border border-rose-200'
+                : isTeal
+                ? 'bg-teal-50 text-teal-800 border border-teal-200'
+                : 'bg-emerald-50 text-emerald-800 border border-emerald-200'
             }`}>
               {badgeText}
             </span>
@@ -296,13 +322,23 @@ export default function DatePicker({
         onClick={() => setIsOpen(!isOpen)}
         className={`w-full text-left p-2.5 sm:p-3 min-h-[46px] rounded-xl border transition-all flex items-center justify-between gap-2 ${
           isOpen
-            ? `ring-2 ${theme === 'teal' ? 'ring-teal-500/20 border-teal-500 bg-teal-50/20' : 'ring-emerald-500/20 border-emerald-500 bg-emerald-50/20'} shadow-xs`
+            ? `ring-2 ${
+                isRose
+                  ? 'ring-rose-500/20 border-rose-500 bg-rose-50/20'
+                  : isTeal
+                  ? 'ring-teal-500/20 border-teal-500 bg-teal-50/20'
+                  : 'ring-emerald-500/20 border-emerald-500 bg-emerald-50/20'
+              } shadow-xs`
             : 'border-slate-300 bg-white hover:border-slate-400 shadow-2xs'
         } ${disabled ? 'opacity-50 cursor-not-allowed bg-slate-50' : 'cursor-pointer'}`}
       >
         <div className="flex items-center gap-2.5 min-w-0">
           <div className={`w-8 h-8 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center shrink-0 ${
-            theme === 'teal' ? 'bg-teal-100/70 text-teal-800' : 'bg-emerald-100/70 text-emerald-800'
+            isRose
+              ? 'bg-rose-100/80 text-rose-800'
+              : isTeal
+              ? 'bg-teal-100/70 text-teal-800'
+              : 'bg-emerald-100/70 text-emerald-800'
           }`}>
             <CalendarIcon className="w-4 h-4" />
           </div>
@@ -388,6 +424,10 @@ export default function DatePicker({
                   className={`px-2 py-0.5 rounded-md border text-[10px] whitespace-nowrap transition-colors ${
                     disabledPreset
                       ? 'opacity-30 cursor-not-allowed bg-slate-50 border-slate-100 text-slate-400'
+                      : isRose
+                      ? 'bg-slate-50 hover:bg-rose-50 text-slate-700 hover:text-rose-900 border-slate-200'
+                      : isTeal
+                      ? 'bg-slate-50 hover:bg-teal-50 text-slate-700 hover:text-teal-900 border-slate-200'
                       : 'bg-slate-50 hover:bg-emerald-50 text-slate-700 hover:text-emerald-900 border-slate-200'
                   }`}
                 >
@@ -430,11 +470,11 @@ export default function DatePicker({
                       : inRange
                       ? `${themeRangeBg} font-bold`
                       : 'text-slate-700 hover:bg-slate-100 cursor-pointer'
-                  } ${todayDay && !selectedDay ? 'ring-1.5 ring-emerald-600 font-black' : ''}`}
+                  } ${todayDay && !selectedDay ? `ring-1.5 ${isRose ? 'ring-rose-600' : isTeal ? 'ring-teal-600' : 'ring-emerald-600'} font-black` : ''}`}
                 >
                   <span>{date.getDate()}</span>
                   {todayDay && !selectedDay && (
-                    <span className="absolute bottom-0.5 w-1 h-1 rounded-full bg-emerald-600" />
+                    <span className={`absolute bottom-0.5 w-1 h-1 rounded-full ${isRose ? 'bg-rose-600' : isTeal ? 'bg-teal-600' : 'bg-emerald-600'}`} />
                   )}
                 </button>
               );
