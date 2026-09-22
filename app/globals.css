@@ -21,6 +21,73 @@ input[type="number"] {
   appearance: textfield;
 }
 
+/* Custom UI Styling for all Dropdown / Select Menus across the project */
+select:not(.native-select) {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%230B2545' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.85rem center;
+  background-size: 1.05rem 1.05rem;
+  padding-right: 2.5rem !important;
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
+}
+
+/* Custom Emerald Variant for Emerald Cards and Meal Plans */
+select.select-emerald,
+.theme-emerald select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23047857' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+}
+
+/* Custom Rose Variant for Dropoff Cards */
+select.select-rose,
+.theme-rose select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23e11d48' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+}
+
+/* High-fidelity styling for option elements */
+select option {
+  padding: 10px 14px;
+  background-color: #ffffff;
+  color: #0f172a;
+  font-weight: 600;
+  font-size: 13px;
+}
+
+select option:checked {
+  background-color: #ecfdf5;
+  color: #065f46;
+  font-weight: 700;
+}
+
+/* Progressive enhancement with customizable select API where supported */
+@supports (appearance: base-select) {
+  select.custom-brand-select,
+  select.custom-brand-select::picker(select) {
+    appearance: base-select;
+  }
+
+  select.custom-brand-select::picker(select) {
+    background-color: #ffffff;
+    border: 1px solid #cbd5e1;
+    border-radius: 0.75rem;
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+    padding: 0.35rem;
+  }
+
+  select.custom-brand-select option {
+    padding: 0.5rem 0.75rem;
+    border-radius: 0.5rem;
+    cursor: pointer;
+  }
+
+  select.custom-brand-select option:hover {
+    background-color: #f1f5f9;
+  }
+}
+
 /* Strictly isolate the PDF Preview component and print container so it does NOT inherit Inter and retains original print accuracy */
 .pdf-template-container,
 .pdf-page-container,

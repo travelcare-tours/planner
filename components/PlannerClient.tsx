@@ -54,10 +54,14 @@ import {
   Copy,
   Check,
   Palmtree,
-  ArrowRight
+  ArrowRight,
+  Database,
+  Table
 } from 'lucide-react';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas-pro';
+import { GoogleSheetsModal } from '@/components/GoogleSheetsModal';
+import { saveVoucherToGoogleSheet, fetchLastVoucherNumber } from '@/lib/google-sheets-sync';
 
 export interface PlannerClientProps {
   initialTab?: 'whatsapp-leads' | 'editor' | 'activities' | 'catalog' | 'preview' | 'docs';
@@ -77,6 +81,41 @@ export function PlannerClient({ initialTab = 'whatsapp-leads' }: PlannerClientPr
     role: 'Staff Planner Specialist',
     isAuthenticated: true,
   });
+
+  // Google Sheets Database state
+  const [showGoogleSheetsModal, setShowGoogleSheetsModal] = useState(false);
+  const [isSavingSheet, setIsSavingSheet] = useState(false);
+  const [previewSaveStatus, setPreviewSaveStatus] = useState<string | null>(null);
+
+  // PDF Preview page navigation & memory tracking
+  const [activePreviewPage, setActivePreviewPage] = useState<string>('pdf-page-1');
+  const lastViewedVoucherIdRef = useRef<string>(trip.voucherNumber);
+  const lastViewedPageIdRef = useRef<string>('pdf-page-1');
+
+  // Smooth scroll to target preview page
+  const handleScrollToPreviewPage = (pageId: string) => {
+    lastViewedPageIdRef.current = pageId;
+    setActivePreviewPage(pageId);
+    const target = document.getElementById(pageId);
+    if (target) {
+      target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  };
+
+  // Manual save final voucher to Google Sheet from Preview with status 'Under Review'
+  const handleSaveToGoogleSheetFromPreview = async () => {
+    setIsSavingSheet(true);
+    try {
+      const res = await saveVoucherToGoogleSheet(trip, staffUser, 'Under Review');
+      setPreviewSaveStatus(res.message);
+      setTimeout(() => setPreviewSaveStatus(null), 3500);
+    } catch {
+      setPreviewSaveStatus('Error saving');
+      setTimeout(() => setPreviewSaveStatus(null), 3500);
+    } finally {
+      setIsSavingSheet(false);
+    }
+  };
 
   // Load from localStorage only after initial client mount to avoid SSR hydration mismatch
   useEffect(() => {
@@ -198,6 +237,26 @@ export function PlannerClient({ initialTab = 'whatsapp-leads' }: PlannerClientPr
   const [pdfKey, setPdfKey] = useState<number>(0);
 
   const printRef = useRef<HTMLDivElement>(null);
+  const [unscaledPdfHeight, setUnscaledPdfHeight] = useState<number>(() => {
+    const daysCount = trip?.days?.length || 5;
+    const totalPages = 6 + Math.ceil(daysCount / 2);
+    return totalPages * 1155;
+  });
+
+  useEffect(() => {
+    const el = printRef.current;
+    if (!el) return;
+    const update = () => {
+      if (el) {
+        const h = el.scrollHeight || el.offsetHeight;
+        if (h > 0) setUnscaledPdfHeight(h);
+      }
+    };
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [trip, pdfKey, currentTab]);
 
   // Synchronize PDF data directly from current state & storage as a backup
   const handleSyncPdfData = () => {
@@ -344,6 +403,64 @@ export function PlannerClient({ initialTab = 'whatsapp-leads' }: PlannerClientPr
 
   const previewScrollContainerRef = useRef<HTMLDivElement>(null);
 
+  // Restore scroll position or reset to beginning when switching to PDF Preview
+  useEffect(() => {
+    if (currentTab === 'preview') {
+      // Check if voucher number has changed
+      if (trip.voucherNumber !== lastViewedVoucherIdRef.current) {
+        lastViewedVoucherIdRef.current = trip.voucherNumber;
+        lastViewedPageIdRef.current = 'pdf-page-1';
+        setActivePreviewPage('pdf-page-1');
+        // Reset scroll to top (beginning of new voucher)
+        window.scrollTo({ top: 0, behavior: 'instant' });
+      } else {
+        // Same voucher: restore to last viewed page
+        const timer = setTimeout(() => {
+          const target = document.getElementById(lastViewedPageIdRef.current);
+          if (target) {
+            target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          } else {
+            window.scrollTo({ top: 0, behavior: 'instant' });
+          }
+        }, 120);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [currentTab, trip.voucherNumber]);
+
+  // Track active page in preview via IntersectionObserver
+  useEffect(() => {
+    if (currentTab !== 'preview') return;
+    const pageIds = [
+      'pdf-page-1',
+      'pdf-page-2',
+      'pdf-page-itinerary-1',
+      'pdf-page-commercials',
+      'pdf-page-payment',
+      'pdf-page-terms',
+      'pdf-page-tips-about'
+    ];
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting && entry.target.id) {
+            setActivePreviewPage(entry.target.id);
+            lastViewedPageIdRef.current = entry.target.id;
+          }
+        });
+      },
+      { threshold: 0.3 }
+    );
+
+    pageIds.forEach((id) => {
+      const el = document.getElementById(id);
+      if (el) observer.observe(el);
+    });
+
+    return () => observer.disconnect();
+  }, [currentTab, pdfKey]);
+
   // High-Resolution Native Browser Print / Save as PDF
   const triggerNativePrint = () => {
     window.print();
@@ -456,6 +573,16 @@ export function PlannerClient({ initialTab = 'whatsapp-leads' }: PlannerClientPr
       }
 
       pdf.save(`TravelCareTours_Itinerary_${trip.voucherNumber || 'TCT-2026-Q0196'}.pdf`);
+
+      // Automatically update/record in Google Sheet with status 'Under Review'
+      saveVoucherToGoogleSheet(trip, staffUser, 'Under Review')
+        .then((sheetRes) => {
+          setPreviewSaveStatus(sheetRes.message);
+          setTimeout(() => setPreviewSaveStatus(null), 3500);
+        })
+        .catch((e) => {
+          console.warn('[Google Sheet Sync on PDF Download error]:', e);
+        });
     } catch (err) {
       console.error('PDF export error:', err);
       window.print();
@@ -469,16 +596,24 @@ export function PlannerClient({ initialTab = 'whatsapp-leads' }: PlannerClientPr
       setPdfZoom(100);
       return;
     }
-    // A4 width in standard screen pixels is approx 794px
-    const containerWidth = previewScrollContainerRef.current.clientWidth - 32;
-    const calculatedZoom = Math.min(160, Math.max(30, Math.round((containerWidth / 794) * 100)));
+    // A4 width in standard screen pixels is 793.7px (~794px)
+    const containerWidth = previewScrollContainerRef.current.clientWidth;
+    const usableWidth = Math.max(300, containerWidth - 32);
+    const calculatedZoom = Math.min(160, Math.max(30, Math.round((usableWidth / 793.7) * 100)));
     setPdfZoom(calculatedZoom);
+    if (previewScrollContainerRef.current) {
+      previewScrollContainerRef.current.scrollLeft = 0;
+    }
   };
 
   const handleFitHeight = () => {
-    const availableHeight = typeof window !== 'undefined' ? window.innerHeight - 200 : 800;
-    const calculatedZoom = Math.min(130, Math.max(30, Math.round((availableHeight / 1123) * 100)));
+    // Screen height minus top nav, sticky headers, and margins (~180px)
+    const availableHeight = typeof window !== 'undefined' ? window.innerHeight - 180 : 800;
+    const calculatedZoom = Math.min(130, Math.max(30, Math.round((availableHeight / 1122.5) * 100)));
     setPdfZoom(calculatedZoom);
+    if (previewScrollContainerRef.current) {
+      previewScrollContainerRef.current.scrollLeft = 0;
+    }
   };
 
   // WhatsApp formatted string generator
@@ -520,6 +655,7 @@ ${trip.days.map((d) => `*Day ${d.dayNumber} (${d.destination}):* ${d.activities.
         onLogout={handleLogout}
         onOpenLogin={() => setShowAuthModal(true)}
         onOpenImport={() => setShowImportModal(true)}
+        onOpenGoogleSheets={() => setShowGoogleSheetsModal(true)}
         onPrint={triggerNativePrint}
         onShareWhatsApp={() => setShowWhatsAppModal(true)}
         voucherNumber={trip.voucherNumber}
@@ -535,6 +671,8 @@ ${trip.days.map((d) => `*Day ${d.dayNumber} (${d.destination}):* ${d.activities.
             onNavigateToActivities={() => setCurrentTab('activities')}
             onNavigateToPreview={() => setCurrentTab('preview')}
             onNavigateToV1Trip={() => setCurrentTab('editor')}
+            onOpenGoogleSheets={() => setShowGoogleSheetsModal(true)}
+            staffUser={staffUser}
           />
         )}
 
@@ -576,7 +714,45 @@ ${trip.days.map((d) => `*Day ${d.dayNumber} (${d.destination}):* ${d.activities.
 
         {/* PDF Document Preview & Generation View */}
         {currentTab === 'preview' && (
-          <div className="space-y-6">
+          <div className="space-y-6 relative">
+            {/* Floating Left Page Jump Toolbar */}
+            <div 
+              id="pdf-floating-jump-toolbar"
+              className="fixed left-2 sm:left-4 lg:left-6 top-1/2 -translate-y-1/2 z-40 flex flex-col gap-1 p-1.5 sm:p-2 bg-white/95 backdrop-blur-xl border border-slate-200/90 rounded-2xl shadow-xl no-print animate-in fade-in slide-in-from-left-2 duration-200 ring-1 ring-slate-900/5"
+            >
+              <div className="flex items-center gap-1.5 px-2 py-1 text-[10px] font-black uppercase tracking-wider text-slate-400 border-b border-slate-100 mb-0.5">
+                <Layers className="w-3 h-3 text-emerald-700" />
+                <span className="hidden sm:inline">Jump</span>
+              </div>
+              {[
+                { id: 'pdf-page-1', num: '1', label: 'Cover' },
+                { id: 'pdf-page-2', num: '2', label: 'Overview' },
+                { id: 'pdf-page-itinerary-1', num: '3', label: 'Days' },
+                { id: 'pdf-page-commercials', num: '4', label: 'Inclusions' },
+                { id: 'pdf-page-payment', num: '5', label: 'Payment' },
+                { id: 'pdf-page-terms', num: '6', label: 'Terms' },
+              ].map((p) => (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => handleScrollToPreviewPage(p.id)}
+                  className={`flex items-center gap-2 px-2 sm:px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer text-left group ${
+                    activePreviewPage === p.id
+                      ? 'bg-emerald-800 text-white shadow-xs'
+                      : 'text-slate-700 hover:text-slate-950 hover:bg-slate-100'
+                  }`}
+                  title={`Jump to Page ${p.num}: ${p.label}`}
+                >
+                  <span className={`w-5 h-5 rounded-lg flex items-center justify-center text-[10px] font-mono font-black ${
+                    activePreviewPage === p.id ? 'bg-emerald-700 text-white' : 'bg-slate-100 text-slate-600 group-hover:bg-white'
+                  }`}>
+                    {p.num}
+                  </span>
+                  <span className="hidden sm:inline text-[11px] whitespace-nowrap">{p.label}</span>
+                </button>
+              ))}
+            </div>
+
             {/* Top Toolbar */}
             <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-xs flex flex-wrap items-center justify-between gap-4 no-print sticky top-20 z-30 backdrop-blur-md bg-white/95">
               <div className="flex items-center gap-3">
@@ -652,6 +828,19 @@ ${trip.days.map((d) => `*Day ${d.dayNumber} (${d.destination}):* ${d.activities.
                     <span className="hidden sm:inline">WhatsApp</span>
                   </button>
 
+                  {/* Manual Save to Google Sheet upon final confirmation */}
+                  <button
+                    id="btn-preview-save-sheet"
+                    type="button"
+                    onClick={handleSaveToGoogleSheetFromPreview}
+                    disabled={isSavingSheet}
+                    className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-emerald-950 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 rounded-xl transition-colors cursor-pointer shadow-2xs disabled:opacity-50"
+                    title="Save final confirmed voucher to Google Sheet database"
+                  >
+                    <Database className="w-3.5 h-3.5 text-emerald-700" />
+                    <span>{previewSaveStatus || 'Save to Sheet'}</span>
+                  </button>
+
                   <button
                     id="btn-download-pdf-file"
                     type="button"
@@ -690,10 +879,19 @@ ${trip.days.map((d) => `*Day ${d.dayNumber} (${d.destination}):* ${d.activities.
             {/* Live Document Canvas */}
             <div 
               ref={previewScrollContainerRef}
-              className="w-full overflow-x-auto overflow-y-visible py-4 sm:py-6 px-1 sm:px-4 print:py-0 print:px-0 print:overflow-visible touch-pan-x touch-pan-y"
+              className="w-full overflow-x-auto py-4 sm:py-6 px-2 sm:px-4 print:p-0 print:overflow-visible touch-pan-x touch-pan-y"
               style={{ WebkitOverflowScrolling: 'touch' }}
             >
-              <div className="min-w-fit w-max mx-auto flex justify-start sm:justify-center">
+              {/* Scaled Anchor Box: Exactly matches visual scaled dimensions of the document */}
+              <div 
+                id="pdf-scale-anchor"
+                className="relative mx-auto print:m-0 print:w-auto print:h-auto"
+                style={{
+                  width: `${Math.round(793.7 * (pdfZoom / 100))}px`,
+                  height: unscaledPdfHeight > 0 ? `${Math.round(unscaledPdfHeight * (pdfZoom / 100))}px` : 'auto',
+                  transition: 'width 150ms ease-out, height 150ms ease-out',
+                }}
+              >
                 <div 
                   ref={printRef}
                   id="pdf-template-wrapper"
@@ -702,8 +900,11 @@ ${trip.days.map((d) => `*Day ${d.dayNumber} (${d.destination}):* ${d.activities.
                     transformOrigin: 'top left',
                     width: '210mm',
                     minWidth: '210mm',
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
                   }}
-                  className="pdf-template-container transition-transform duration-150 py-2 print:py-0 print:transform-none shrink-0"
+                  className="pdf-template-container transition-transform duration-150 print:relative print:transform-none shrink-0"
                 >
                   <PdfTemplate key={pdfKey} trip={trip} />
                 </div>
@@ -803,6 +1004,16 @@ ${trip.days.map((d) => `*Day ${d.dayNumber} (${d.destination}):* ${d.activities.
             </div>
           </div>
         </div>
+      )}
+      {/* Google Sheets Voucher Database Modal */}
+      {showGoogleSheetsModal && (
+        <GoogleSheetsModal
+          isOpen={showGoogleSheetsModal}
+          onClose={() => setShowGoogleSheetsModal(false)}
+          onSyncComplete={(nextVoucherNumber) => {
+            handleUpdateTrip({ ...trip, voucherNumber: nextVoucherNumber });
+          }}
+        />
       )}
     </div>
   );

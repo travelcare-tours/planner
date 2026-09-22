@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { TripDetails, DayItinerary, ActivityItem, DestinationCatalogItem } from '@/types/itinerary';
 import { syncDaysWithAccommodationsAndPickup } from '@/components/TripDetailsForm';
+import { CustomSelect } from '@/components/CustomSelect';
 
 interface ActivityManagerProps {
   trip: TripDetails;
@@ -93,6 +94,7 @@ export const ActivityManager: React.FC<ActivityManagerProps> = ({
         days: synced,
       });
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [trip.accommodations, trip.pickupDate, trip.dropoffLocation]);
 
   // One-click manual sync of all days and activities directly from current stay destinations
@@ -641,35 +643,36 @@ export const ActivityManager: React.FC<ActivityManagerProps> = ({
                   <label className="block text-xs font-bold text-slate-700 mb-1">
                     Timing
                   </label>
-                  <select
+                  <CustomSelect
                     value={newTiming}
-                    onChange={(e) => setNewTiming(e.target.value as ActivityItem['timing'])}
-                    className="w-full text-xs px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-600 focus:outline-hidden bg-white"
-                  >
-                    <option value="Morning">Morning</option>
-                    <option value="Afternoon">Afternoon</option>
-                    <option value="Evening">Evening</option>
-                    <option value="Full Day">Full Day</option>
-                  </select>
+                    onChange={(val) => setNewTiming(val as ActivityItem['timing'])}
+                    options={['Morning', 'Afternoon', 'Evening', 'Full Day']}
+                    theme="emerald"
+                    size="md"
+                    ariaLabel="Activity Timing"
+                  />
                 </div>
 
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">
                     Category
                   </label>
-                  <select
+                  <CustomSelect
                     value={newCategory}
-                    onChange={(e) => setNewCategory(e.target.value as ActivityItem['category'])}
-                    className="w-full text-xs px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-600 focus:outline-hidden bg-white"
-                  >
-                    <option value="Sightseeing">Sightseeing</option>
-                    <option value="Nature">Nature</option>
-                    <option value="Cultural">Cultural</option>
-                    <option value="Adventure">Adventure</option>
-                    <option value="Relaxation">Relaxation</option>
-                    <option value="Heritage">Heritage</option>
-                    <option value="Shopping">Shopping</option>
-                  </select>
+                    onChange={(val) => setNewCategory(val as ActivityItem['category'])}
+                    options={[
+                      'Sightseeing',
+                      'Nature',
+                      'Cultural',
+                      'Adventure',
+                      'Relaxation',
+                      'Heritage',
+                      'Shopping'
+                    ]}
+                    theme="emerald"
+                    size="md"
+                    ariaLabel="Activity Category"
+                  />
                 </div>
               </div>
 

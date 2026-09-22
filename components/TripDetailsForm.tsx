@@ -43,6 +43,7 @@ import { TripDetails, AccommodationItem, DayItinerary } from '@/types/itinerary'
 import { INITIAL_DESTINATIONS_CATALOG } from '@/lib/sample-data';
 import { generateFallbackTitles } from '@/lib/title-generator';
 import DatePicker, { parseDateSafe } from '@/components/DatePicker';
+import { CustomSelect } from '@/components/CustomSelect';
 
 interface TripDetailsFormProps {
   trip: TripDetails;
@@ -1667,22 +1668,23 @@ export const TripDetailsForm: React.FC<TripDetailsFormProps> = ({
                   Pickup Hub / Location *
                 </label>
                 <div className="space-y-2">
-                  <select
-                    aria-label="Select Pickup Hub"
+                  <CustomSelect
+                    ariaLabel="Select Pickup Hub"
+                    placeholder="Select Standard Hub..."
                     value={LOCATION_OPTIONS.includes(trip.pickupLocation) ? trip.pickupLocation : '__custom__'}
-                    onChange={(e) => {
-                      if (e.target.value !== '__custom__') {
-                        onUpdateTrip({ ...trip, pickupLocation: e.target.value });
+                    onChange={(val) => {
+                      if (val !== '__custom__') {
+                        onUpdateTrip({ ...trip, pickupLocation: val });
                       }
                     }}
-                    className="w-full text-sm px-3 py-2 border border-slate-300 rounded-lg bg-white font-medium text-slate-800 focus:ring-2 focus:ring-emerald-600 focus:outline-hidden"
-                  >
-                    <option value="" disabled>Select Standard Hub...</option>
-                    {LOCATION_OPTIONS.map((loc) => (
-                      <option key={loc} value={loc}>{loc}</option>
-                    ))}
-                    <option value="__custom__">Custom / Type Other Location...</option>
-                  </select>
+                    options={[
+                      ...LOCATION_OPTIONS,
+                      { value: '__custom__', label: 'Custom / Type Other Location...' }
+                    ]}
+                    theme="emerald"
+                    size="md"
+                    searchable={true}
+                  />
 
                   <input
                     type="text"
@@ -1752,22 +1754,23 @@ export const TripDetailsForm: React.FC<TripDetailsFormProps> = ({
                   Drop-off Hub / Location *
                 </label>
                 <div className="space-y-2">
-                  <select
-                    aria-label="Select Drop-off Hub"
+                  <CustomSelect
+                    ariaLabel="Select Drop-off Hub"
+                    placeholder="Select Standard Hub..."
                     value={LOCATION_OPTIONS.includes(trip.dropoffLocation) ? trip.dropoffLocation : '__custom__'}
-                    onChange={(e) => {
-                      if (e.target.value !== '__custom__') {
-                        onUpdateTrip({ ...trip, dropoffLocation: e.target.value });
+                    onChange={(val) => {
+                      if (val !== '__custom__') {
+                        onUpdateTrip({ ...trip, dropoffLocation: val });
                       }
                     }}
-                    className="w-full text-sm px-3 py-2 border border-slate-300 rounded-lg bg-white font-medium text-slate-800 focus:ring-2 focus:ring-rose-600 focus:outline-hidden"
-                  >
-                    <option value="" disabled>Select Standard Hub...</option>
-                    {LOCATION_OPTIONS.map((loc) => (
-                      <option key={loc} value={loc}>{loc}</option>
-                    ))}
-                    <option value="__custom__">Custom / Type Other Location...</option>
-                  </select>
+                    options={[
+                      ...LOCATION_OPTIONS,
+                      { value: '__custom__', label: 'Custom / Type Other Location...' }
+                    ]}
+                    theme="rose"
+                    size="md"
+                    searchable={true}
+                  />
 
                   <input
                     type="text"
@@ -1870,21 +1873,23 @@ export const TripDetailsForm: React.FC<TripDetailsFormProps> = ({
             {/* Dropdown Selector + Direct Editable Input */}
             <div className="flex flex-col sm:flex-row gap-2.5 pt-1">
               <div className="sm:w-2/5">
-                <select
-                  aria-label="Vehicle Assigned Dropdown"
+                <CustomSelect
+                  ariaLabel="Vehicle Assigned Dropdown"
                   value={VEHICLE_OPTIONS.includes(trip.vehicleType) ? trip.vehicleType : '__custom__'}
-                  onChange={(e) => {
-                    if (e.target.value !== '__custom__') {
-                      handleVehicleChange(e.target.value);
+                  onChange={(val) => {
+                    if (val !== '__custom__') {
+                      handleVehicleChange(val);
                     }
                   }}
-                  className="w-full text-sm px-3 py-2.5 border border-slate-300 rounded-xl bg-white font-semibold text-slate-800 focus:ring-2 focus:ring-emerald-600 focus:outline-hidden"
-                >
-                  <option value="Sedan">Sedan - Swift Dzire / Aspire (1-4 Pax)</option>
-                  <option value="AC SUV">AC SUV (4-6 Pax)</option>
-                  <option value="Traveller 12 Seat">Traveller 12 Seat (7-12 Pax)</option>
-                  <option value="__custom__">Custom / Type Model...</option>
-                </select>
+                  options={[
+                    { value: 'Sedan', label: 'Sedan - Swift Dzire / Aspire (1-4 Pax)' },
+                    { value: 'AC SUV', label: 'AC SUV (4-6 Pax)' },
+                    { value: 'Traveller 12 Seat', label: 'Traveller 12 Seat (7-12 Pax)' },
+                    { value: '__custom__', label: 'Custom / Type Model...' },
+                  ]}
+                  theme="emerald"
+                  size="md"
+                />
               </div>
 
               <div className="sm:w-3/5">
@@ -1925,19 +1930,19 @@ export const TripDetailsForm: React.FC<TripDetailsFormProps> = ({
 
           {/* Top Right Controls: Meal Plan Dropdown & Add Destination Stop */}
           <div className="flex flex-wrap items-center gap-2.5">
-            <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5">
-              <span className="text-xs font-bold text-slate-700 whitespace-nowrap">Trip Meal Plan:</span>
-              <select
-                aria-label="Trip Meal Plan Selection"
+            <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-2 py-1 shadow-2xs">
+              <span className="text-xs font-bold text-slate-700 whitespace-nowrap pl-1">Trip Meal Plan:</span>
+              <CustomSelect
+                ariaLabel="Trip Meal Plan Selection"
+                placeholder="Select Meal Plan..."
                 value={selectedTripMealPlan}
-                onChange={(e) => handleApplyTripMealPlan(e.target.value)}
-                className="text-xs sm:text-sm bg-transparent border-0 font-semibold text-emerald-900 focus:ring-0 focus:outline-hidden pr-2 cursor-pointer"
-              >
-                <option value="">Select Meal Plan...</option>
-                {MEAL_PLAN_OPTIONS.map((plan) => (
-                  <option key={plan} value={plan}>{plan}</option>
-                ))}
-              </select>
+                onChange={(val) => handleApplyTripMealPlan(val)}
+                options={MEAL_PLAN_OPTIONS}
+                theme="emerald"
+                size="sm"
+                fullWidth={false}
+                triggerClassName="border-0 shadow-none bg-transparent font-bold text-emerald-900 min-w-[150px]"
+              />
             </div>
 
             <button
@@ -2090,28 +2095,28 @@ export const TripDetailsForm: React.FC<TripDetailsFormProps> = ({
                       </td>
                       {showMealPlanCol && (
                         <td className="py-2.5 px-2 bg-emerald-50/30">
-                          <select
+                          <CustomSelect
                             value={acc.mealPlan}
-                            onChange={(e) => handleUpdateAccommodation(acc.id, 'mealPlan', e.target.value)}
-                            className="w-full px-2.5 py-1.5 border border-emerald-200 rounded-lg text-sm focus:ring-1 focus:ring-emerald-600 focus:outline-hidden bg-white"
-                          >
-                            {MEAL_PLAN_OPTIONS.map((mp) => (
-                              <option key={mp} value={mp}>{mp}</option>
-                            ))}
-                          </select>
+                            onChange={(val) => handleUpdateAccommodation(acc.id, 'mealPlan', val)}
+                            options={MEAL_PLAN_OPTIONS}
+                            theme="emerald"
+                            size="sm"
+                            triggerClassName="bg-white border-emerald-300 font-semibold"
+                            ariaLabel="Select Meal Plan"
+                          />
                         </td>
                       )}
                       {showStatusCol && (
                         <td className="py-2.5 px-2 bg-emerald-50/30">
-                          <select
+                          <CustomSelect
                             value={acc.status}
-                            onChange={(e) => handleUpdateAccommodation(acc.id, 'status', e.target.value as any)}
-                            className="px-2.5 py-1.5 border border-emerald-200 rounded-lg text-sm focus:ring-1 focus:ring-emerald-600 focus:outline-hidden bg-white text-emerald-800 font-semibold"
-                          >
-                            <option value="Confirmed">Confirmed</option>
-                            <option value="Reserved">Reserved</option>
-                            <option value="Voucher Issued">Voucher Issued</option>
-                          </select>
+                            onChange={(val) => handleUpdateAccommodation(acc.id, 'status', val as any)}
+                            options={['Confirmed', 'Reserved', 'Voucher Issued']}
+                            theme="emerald"
+                            size="sm"
+                            triggerClassName="bg-white border-emerald-300 font-bold text-emerald-800"
+                            ariaLabel="Select Stay Status"
+                          />
                         </td>
                       )}
                       <td className="py-2.5 px-2 text-center">
@@ -2226,15 +2231,15 @@ export const TripDetailsForm: React.FC<TripDetailsFormProps> = ({
                         <label className="block text-[11px] font-semibold text-emerald-800 mb-1">
                           Meal Plan
                         </label>
-                        <select
+                        <CustomSelect
                           value={acc.mealPlan}
-                          onChange={(e) => handleUpdateAccommodation(acc.id, 'mealPlan', e.target.value)}
-                          className="w-full px-2 py-1.5 border border-emerald-200 rounded-lg text-xs font-semibold text-slate-800 focus:ring-1 focus:ring-emerald-600 focus:outline-hidden bg-white"
-                        >
-                          {MEAL_PLAN_OPTIONS.map((mp) => (
-                            <option key={mp} value={mp}>{mp}</option>
-                          ))}
-                        </select>
+                          onChange={(val) => handleUpdateAccommodation(acc.id, 'mealPlan', val)}
+                          options={MEAL_PLAN_OPTIONS}
+                          theme="emerald"
+                          size="md"
+                          triggerClassName="bg-white border-emerald-300 font-semibold text-slate-800"
+                          ariaLabel="Select Meal Plan"
+                        />
                       </div>
                     )}
 
@@ -2243,15 +2248,15 @@ export const TripDetailsForm: React.FC<TripDetailsFormProps> = ({
                         <label className="block text-[11px] font-semibold text-emerald-800 mb-1">
                           Status
                         </label>
-                        <select
+                        <CustomSelect
                           value={acc.status}
-                          onChange={(e) => handleUpdateAccommodation(acc.id, 'status', e.target.value as any)}
-                          className="w-full px-2 py-1.5 border border-emerald-200 rounded-lg text-xs font-semibold text-emerald-800 focus:ring-1 focus:ring-emerald-600 focus:outline-hidden bg-white"
-                        >
-                          <option value="Confirmed">Confirmed</option>
-                          <option value="Reserved">Reserved</option>
-                          <option value="Voucher Issued">Voucher Issued</option>
-                        </select>
+                          onChange={(val) => handleUpdateAccommodation(acc.id, 'status', val as any)}
+                          options={['Confirmed', 'Reserved', 'Voucher Issued']}
+                          theme="emerald"
+                          size="md"
+                          triggerClassName="bg-white border-emerald-300 font-bold text-emerald-800"
+                          ariaLabel="Select Stay Status"
+                        />
                       </div>
                     )}
                   </div>
@@ -2318,16 +2323,15 @@ export const TripDetailsForm: React.FC<TripDetailsFormProps> = ({
             <label className="block text-xs sm:text-sm font-bold text-slate-700 mb-1.5">
               Booking Status
             </label>
-            <select
+            <CustomSelect
               value={trip.bookingStatus || 'Confirmed'}
-              onChange={(e) => onUpdateTrip({ ...trip, bookingStatus: e.target.value as any })}
-              className="w-full text-sm font-bold text-emerald-900 px-3.5 py-2.5 border border-slate-300 rounded-xl bg-white focus:ring-2 focus:ring-emerald-600 focus:outline-hidden"
-            >
-              <option value="Confirmed">Confirmed</option>
-              <option value="Draft">Draft</option>
-              <option value="Under Review">Under Review</option>
-              <option value="Payment Pending">Payment Pending</option>
-            </select>
+              onChange={(val) => onUpdateTrip({ ...trip, bookingStatus: val as any })}
+              options={['Confirmed', 'Draft', 'Under Review', 'Payment Pending']}
+              theme="emerald"
+              size="lg"
+              triggerClassName="font-bold text-emerald-900"
+              ariaLabel="Booking Status"
+            />
           </div>
 
           <div className="sm:col-span-2 md:col-span-4">

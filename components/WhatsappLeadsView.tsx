@@ -36,7 +36,9 @@ import {
   ShieldCheck,
   RotateCcw,
   Utensils,
-  Info
+  Info,
+  Table,
+  CreditCard
 } from 'lucide-react';
 import { 
   DEFAULT_KERALA_DESTINATIONS,
@@ -48,6 +50,15 @@ import {
   syncDaysWithAccommodationsAndPickup, 
   generateDynamicInclusionsAndExclusions 
 } from '@/components/TripDetailsForm';
+import { CustomSelect } from '@/components/CustomSelect';
+import { 
+  fetchLastVoucherNumber, 
+  saveVoucherToGoogleSheet, 
+  getGoogleSheetWebAppUrl, 
+  formatVoucherCode, 
+  parseVoucherNumber 
+} from '@/lib/google-sheets-sync';
+import { StaffUser } from '@/types/itinerary';
 
 interface WhatsappLeadsViewProps {
   trip: TripDetails;
@@ -55,6 +66,8 @@ interface WhatsappLeadsViewProps {
   onNavigateToActivities: () => void;
   onNavigateToPreview: () => void;
   onNavigateToV1Trip?: () => void;
+  onOpenGoogleSheets?: () => void;
+  staffUser?: StaffUser | null;
 }
 
 // Allowed vehicle options as strictly requested:
@@ -186,6 +199,8 @@ export const WhatsappLeadsView: React.FC<WhatsappLeadsViewProps> = ({
   onNavigateToActivities,
   onNavigateToPreview,
   onNavigateToV1Trip,
+  onOpenGoogleSheets,
+  staffUser,
 }) => {
   // 1. Persistent WhatsApp Message Parser State (kept until quote completed)
   const [pasteInput, setPasteInput] = useState<string>(() => {
@@ -202,6 +217,61 @@ export const WhatsappLeadsView: React.FC<WhatsappLeadsViewProps> = ({
   const [agentPhoneInput, setAgentPhoneInput] = useState('');
   const [lastRefreshedTime, setLastRefreshedTime] = useState<string>('Live');
   const [isRefreshing, setIsRefreshing] = useState(false);
+
+  // Google Sheet Sync & Storage state
+  const [isSyncingSheet, setIsSyncingSheet] = useState(false);
+  const [sheetSaveStatus, setSheetSaveStatus] = useState<string | null>(null);
+  const [isRemoteConfigured, setIsRemoteConfigured] = useState(false);
+
+  useEffect(() => {
+    const checkConfig = () => {
+      setIsRemoteConfigured(Boolean(getGoogleSheetWebAppUrl()));
+    };
+    checkConfig();
+    window.addEventListener('storage', checkConfig);
+    window.addEventListener('focus', checkConfig);
+    return () => {
+      window.removeEventListener('storage', checkConfig);
+      window.removeEventListener('focus', checkConfig);
+    };
+  }, []);
+
+  // Sync / Fetch remote voucher on initial mount
+  useEffect(() => {
+    let isSubscribed = true;
+    async function initVoucherNumber() {
+      if (!trip.voucherNumber || !trip.voucherNumber.startsWith('TCT-2026-Q') || trip.voucherNumber === 'TCT-2026-KER-0195') {
+        const res = await fetchLastVoucherNumber();
+        if (isSubscribed) {
+          onUpdateTrip({ ...trip, voucherNumber: res.nextCode });
+        }
+      }
+    }
+    initVoucherNumber();
+    return () => { isSubscribed = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Increment to Next Serial Quote Code
+  const handleNextSerialCode = () => {
+    const nextCode = getSequentialQuoteCode(true);
+    onUpdateTrip({ ...trip, voucherNumber: nextCode });
+  };
+
+  // Handle Sync / Fetch latest from Google Sheet
+  const handleSyncVoucherFromSheet = async () => {
+    setIsSyncingSheet(true);
+    setSheetSaveStatus(null);
+    try {
+      const res = await fetchLastVoucherNumber();
+      onUpdateTrip({ ...trip, voucherNumber: res.nextCode });
+      setSheetSaveStatus(res.isRemote ? `Synced: ${res.nextCode}` : `Local: ${res.nextCode}`);
+      setTimeout(() => setSheetSaveStatus(null), 3500);
+    } finally {
+      setIsSyncingSheet(false);
+    }
+  };
+
 
   // Optional Meal Plan Column Visibility (hidden by default, toggled via button)
   const [showMealPlanCol, setShowMealPlanCol] = useState<boolean>(false);
@@ -221,14 +291,6 @@ export const WhatsappLeadsView: React.FC<WhatsappLeadsViewProps> = ({
   // Costing & Margin state
   const [isCustomPickup, setIsCustomPickup] = useState<boolean>(() => !LOCATION_OPTIONS.includes(trip.pickupLocation));
   const [isCustomDropoff, setIsCustomDropoff] = useState<boolean>(() => !LOCATION_OPTIONS.includes(trip.dropoffLocation));
-
-  useEffect(() => {
-    setIsCustomPickup(!LOCATION_OPTIONS.includes(trip.pickupLocation));
-  }, [trip.pickupLocation]);
-
-  useEffect(() => {
-    setIsCustomDropoff(!LOCATION_OPTIONS.includes(trip.dropoffLocation));
-  }, [trip.dropoffLocation]);
 
   const [vehicleCost, setVehicleCost] = useState<number>(() => {
     return typeof trip.vehicleCharge === 'number' 
@@ -256,6 +318,12 @@ export const WhatsappLeadsView: React.FC<WhatsappLeadsViewProps> = ({
       : Number(trip.adjustmentAmount) || 0;
   });
 
+  const [advancePercentage, setAdvancePercentage] = useState<number>(() => {
+    return typeof trip.advancePercentage === 'number' && trip.advancePercentage > 0
+      ? trip.advancePercentage
+      : 40;
+  });
+
   // Save raw lead message to localStorage so it is never lost until manually cleared
   const handleUpdatePasteInput = (val: string) => {
     setPasteInput(val);
@@ -270,21 +338,6 @@ export const WhatsappLeadsView: React.FC<WhatsappLeadsViewProps> = ({
     if (typeof window !== 'undefined') {
       localStorage.removeItem('tct_current_lead_msg');
     }
-  };
-
-  // Requirement 2: Quote code must be in serial (e.g. TCT-2026-Q0196)
-  useEffect(() => {
-    if (!trip.voucherNumber || !trip.voucherNumber.startsWith('TCT-2026-Q')) {
-      const serialCode = getSequentialQuoteCode(false);
-      onUpdateTrip({ ...trip, voucherNumber: serialCode });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // Increment to Next Serial Quote Code
-  const handleNextSerialCode = () => {
-    const nextCode = getSequentialQuoteCode(true);
-    onUpdateTrip({ ...trip, voucherNumber: nextCode });
   };
 
   // Compute total hotel B2B cost
@@ -308,8 +361,19 @@ export const WhatsappLeadsView: React.FC<WhatsappLeadsViewProps> = ({
   const subtotalCost = baseCost + marginAmount;
 
   // Final Gross Selling Package Value
-  // Final Gross Selling Package Value
   const finalTotalPackageCost = Math.max(0, subtotalCost + (Number(adjustmentAmount) || 0));
+
+  // Compute dynamic advance amount and balance payable
+  const calculatedAdvanceAmount = useMemo(() => {
+    return Math.min(
+      Math.round(finalTotalPackageCost * (advancePercentage / 100)),
+      finalTotalPackageCost > 0 ? finalTotalPackageCost - 1 : 0
+    );
+  }, [finalTotalPackageCost, advancePercentage]);
+
+  const calculatedBalanceAmount = useMemo(() => {
+    return Math.max(0, finalTotalPackageCost - calculatedAdvanceAmount);
+  }, [finalTotalPackageCost, calculatedAdvanceAmount]);
 
   // Helper to calculate total cost string
   const calculateTotalCostString = (
@@ -339,9 +403,13 @@ export const WhatsappLeadsView: React.FC<WhatsappLeadsViewProps> = ({
     mType: 'percentage' | 'custom',
     mPct: number,
     mCustom: number,
-    adj: number
+    adj: number,
+    advPct: number = advancePercentage
   ) => {
     const newTotalStr = calculateTotalCostString(trip.accommodations, vehCost, mType, mPct, mCustom, adj);
+    const parsedTotal = parseFloat(newTotalStr.replace(/[^\d.]/g, '')) || 0;
+    const calcAdv = Math.min(Math.round(parsedTotal * (advPct / 100)), parsedTotal > 0 ? parsedTotal - 1 : 0);
+    const calcBal = Math.max(0, parsedTotal - calcAdv);
 
     onUpdateTrip({
       ...trip,
@@ -351,6 +419,8 @@ export const WhatsappLeadsView: React.FC<WhatsappLeadsViewProps> = ({
       marginCustomAmount: mCustom,
       adjustmentAmount: adj,
       totalPackageCost: newTotalStr,
+      advancePercentage: advPct,
+      balancePayable: `₹ ${calcBal.toLocaleString('en-IN')}/-`,
     });
   };
 
@@ -1059,22 +1129,60 @@ ${hotelLines}
           </div>
 
           {/* Requirement 2: Quote code in serial for cross checking */}
-          <div className="flex items-center gap-1.5 sm:gap-2 bg-slate-50/90 px-2.5 sm:px-3 py-1.5 rounded-xl border border-slate-200 shadow-2xs w-full sm:w-auto">
-            <span className="text-[11px] sm:text-xs text-slate-500 font-bold uppercase tracking-wider shrink-0">Quote Ref:</span>
-            <input
-              type="text"
-              value={trip.voucherNumber || 'TCT-2026-Q0196'}
-              onChange={(e) => onUpdateTrip({ ...trip, voucherNumber: e.target.value })}
-              className="h-10 sm:h-12 px-2 sm:px-3 rounded-xl bg-white font-mono font-black text-xs sm:text-sm text-emerald-950 border border-slate-300 flex-1 sm:w-44 text-center focus:ring-2 focus:ring-[#0B2545] focus:outline-hidden shadow-2xs min-w-0"
-            />
+          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 bg-slate-50/90 p-1.5 sm:px-3 sm:py-2 rounded-xl border border-slate-200 shadow-2xs w-full sm:w-auto">
+            <div className="flex items-center gap-1.5 flex-1 sm:flex-initial">
+              <span className="text-[11px] sm:text-xs text-slate-500 font-bold uppercase tracking-wider shrink-0">Quote Ref:</span>
+              <input
+                type="text"
+                value={trip.voucherNumber || 'TCT-2026-Q0196'}
+                onChange={(e) => onUpdateTrip({ ...trip, voucherNumber: e.target.value })}
+                className="h-10 sm:h-11 px-2 sm:px-3 rounded-xl bg-white font-mono font-black text-xs sm:text-sm text-emerald-950 border border-slate-300 w-36 sm:w-44 text-center focus:ring-2 focus:ring-[#0B2545] focus:outline-hidden shadow-2xs min-w-0"
+              />
+              <button
+                type="button"
+                onClick={() => handleNextSerialCode()}
+                className="h-10 sm:h-11 w-9 sm:w-10 bg-emerald-700 hover:bg-emerald-800 active:bg-emerald-900 text-white rounded-xl text-base font-bold transition-all shadow-2xs shrink-0 flex items-center justify-center cursor-pointer"
+                title="Increment Next Serial (+1)"
+              >
+                +
+              </button>
+              <button
+                type="button"
+                onClick={handleSyncVoucherFromSheet}
+                disabled={isSyncingSheet}
+                className="h-10 sm:h-11 w-9 sm:w-10 bg-white hover:bg-emerald-50 active:bg-emerald-100 text-slate-700 hover:text-emerald-800 border border-slate-300 rounded-xl transition-all shadow-2xs shrink-0 flex items-center justify-center cursor-pointer disabled:opacity-50"
+                title="Fetch Latest Voucher # from Google Sheet"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isSyncingSheet ? 'animate-spin text-emerald-600' : ''}`} />
+              </button>
+            </div>
+
+            {/* Sheet Connection Status Indicator (Green when connected, Red when disconnected) */}
             <button
               type="button"
-              onClick={() => handleNextSerialCode()}
-              className="h-10 sm:h-12 w-10 sm:w-11 bg-emerald-700 hover:bg-emerald-800 active:bg-emerald-900 text-white rounded-xl text-lg font-bold transition-all shadow-2xs shrink-0 flex items-center justify-center cursor-pointer"
-              title="Next Serial (+1)"
+              onClick={() => onOpenGoogleSheets?.()}
+              className={`h-10 sm:h-11 px-2.5 sm:px-3 rounded-xl border text-xs font-bold transition-all flex items-center gap-2 shrink-0 cursor-pointer shadow-2xs ${
+                isRemoteConfigured
+                  ? 'bg-emerald-50/90 text-emerald-900 border-emerald-300 hover:bg-emerald-100 hover:border-emerald-400'
+                  : 'bg-rose-50/90 text-rose-900 border-rose-300 hover:bg-rose-100 hover:border-rose-400'
+              }`}
+              title={isRemoteConfigured ? "Google Sheet Connected (Click to view database)" : "Google Sheet Not Connected (Click to connect)"}
             >
-              +
+              <span className="relative flex h-2.5 w-2.5">
+                <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${isRemoteConfigured ? 'bg-emerald-400' : 'bg-rose-400'}`}></span>
+                <span className={`relative inline-flex rounded-full h-2.5 w-2.5 ${isRemoteConfigured ? 'bg-emerald-500' : 'bg-rose-500'}`}></span>
+              </span>
+              <Table className={`w-3.5 h-3.5 ${isRemoteConfigured ? 'text-emerald-700' : 'text-rose-700'}`} />
+              <span className="text-[11px] font-extrabold hidden sm:inline">
+                {isRemoteConfigured ? 'Sheet Connected' : 'Sheet Offline'}
+              </span>
             </button>
+
+            {sheetSaveStatus && (
+              <span className="text-[10px] sm:text-xs font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-900 border border-emerald-200 animate-in fade-in">
+                {sheetSaveStatus}
+              </span>
+            )}
           </div>
         </div>
 
@@ -1120,19 +1228,18 @@ ${hotelLines}
             <label className="text-xs sm:text-sm font-bold text-slate-700 block">Vehicle Type</label>
             <div className="relative">
               <Car className="w-4 h-4 sm:w-5 sm:h-5 text-slate-400 absolute left-3.5 top-3.5 pointer-events-none" />
-              <select
+              <CustomSelect
                 value={FLEET_OPTIONS.includes(trip.vehicleType) ? trip.vehicleType : FLEET_OPTIONS[0]}
-                onChange={(e) => {
-                  const newVeh = e.target.value;
+                onChange={(newVeh) => {
                   const { inclusions, exclusions } = generateDynamicInclusionsAndExclusions(newVeh, trip.accommodations, trip.inclusions, trip.exclusions);
                   onUpdateTrip({ ...trip, vehicleType: newVeh, inclusions, exclusions });
                 }}
-                className="w-full h-12 bg-slate-50/70 border border-slate-300 rounded-xl pl-10 sm:pl-11 pr-3 text-sm sm:text-base font-bold text-slate-900 focus:bg-white focus:ring-2 focus:ring-[#0B2545] focus:outline-hidden cursor-pointer transition-colors shadow-2xs"
-              >
-                {FLEET_OPTIONS.map((v) => (
-                  <option key={v} value={v}>{v}</option>
-                ))}
-              </select>
+                options={FLEET_OPTIONS}
+                theme="navy"
+                size="lg"
+                triggerClassName="pl-10 sm:pl-11 font-bold text-sm sm:text-base text-slate-900 bg-slate-50/70 hover:bg-white"
+                ariaLabel="Select Vehicle Type"
+              />
             </div>
           </div>
 
@@ -1253,24 +1360,25 @@ ${hotelLines}
               <label className="block text-xs sm:text-sm font-bold text-slate-700">
                 Pickup Hub / Location *
               </label>
-              <select
-                aria-label="Select Pickup Hub"
+              <CustomSelect
+                ariaLabel="Select Pickup Hub"
                 value={!isCustomPickup && LOCATION_OPTIONS.includes(trip.pickupLocation) ? trip.pickupLocation : '__custom__'}
-                onChange={(e) => {
-                  if (e.target.value === '__custom__') {
+                onChange={(val) => {
+                  if (val === '__custom__') {
                     setIsCustomPickup(true);
                   } else {
                     setIsCustomPickup(false);
-                    onUpdateTrip({ ...trip, pickupLocation: e.target.value });
+                    onUpdateTrip({ ...trip, pickupLocation: val });
                   }
                 }}
-                className="w-full h-11 sm:h-12 text-xs sm:text-sm px-3.5 border border-slate-300 rounded-xl bg-white font-medium text-slate-800 focus:ring-2 focus:ring-emerald-600 focus:outline-hidden shadow-2xs cursor-pointer"
-              >
-                {LOCATION_OPTIONS.map((loc) => (
-                  <option key={loc} value={loc}>{loc}</option>
-                ))}
-                <option value="__custom__">Custom / Type Other Location...</option>
-              </select>
+                options={[
+                  ...LOCATION_OPTIONS,
+                  { value: '__custom__', label: 'Custom / Type Other Location...' },
+                ]}
+                theme="emerald"
+                size="lg"
+                searchable={true}
+              />
 
               {(isCustomPickup || !LOCATION_OPTIONS.includes(trip.pickupLocation)) && (
                 <div className="animate-in fade-in slide-in-from-top-1 duration-150">
@@ -1339,24 +1447,25 @@ ${hotelLines}
               <label className="block text-xs sm:text-sm font-bold text-slate-700">
                 Drop-off Hub / Location *
               </label>
-              <select
-                aria-label="Select Drop-off Hub"
+              <CustomSelect
+                ariaLabel="Select Drop-off Hub"
                 value={!isCustomDropoff && LOCATION_OPTIONS.includes(trip.dropoffLocation) ? trip.dropoffLocation : '__custom__'}
-                onChange={(e) => {
-                  if (e.target.value === '__custom__') {
+                onChange={(val) => {
+                  if (val === '__custom__') {
                     setIsCustomDropoff(true);
                   } else {
                     setIsCustomDropoff(false);
-                    onUpdateTrip({ ...trip, dropoffLocation: e.target.value });
+                    onUpdateTrip({ ...trip, dropoffLocation: val });
                   }
                 }}
-                className="w-full h-11 sm:h-12 text-xs sm:text-sm px-3.5 border border-slate-300 rounded-xl bg-white font-medium text-slate-800 focus:ring-2 focus:ring-rose-600 focus:outline-hidden shadow-2xs cursor-pointer"
-              >
-                {LOCATION_OPTIONS.map((loc) => (
-                  <option key={loc} value={loc}>{loc}</option>
-                ))}
-                <option value="__custom__">Custom / Type Other Location...</option>
-              </select>
+                options={[
+                  ...LOCATION_OPTIONS,
+                  { value: '__custom__', label: 'Custom / Type Other Location...' },
+                ]}
+                theme="rose"
+                size="lg"
+                searchable={true}
+              />
 
               {(isCustomDropoff || !LOCATION_OPTIONS.includes(trip.dropoffLocation)) && (
                 <div className="animate-in fade-in slide-in-from-top-1 duration-150">
@@ -1502,16 +1611,16 @@ ${hotelLines}
             {/* Default Meal Plan selector - always visible to set the trip-wide meal plan */}
             <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-300 px-2.5 sm:px-3 py-1.5 rounded-xl text-xs sm:text-sm shadow-2xs min-h-[40px]">
               <span className="font-bold text-slate-700 whitespace-nowrap">Default Meal:</span>
-              <select
+              <CustomSelect
                 value={defaultTourMealPlan}
-                onChange={(e) => handleApplyGlobalMealPlan(e.target.value)}
-                className="bg-white border border-slate-300 rounded-lg px-2 py-1 font-bold text-slate-800 focus:outline-hidden focus:ring-1 focus:ring-emerald-600 cursor-pointer text-xs sm:text-sm h-8"
+                onChange={(val) => handleApplyGlobalMealPlan(val)}
+                options={MEAL_PLANS}
+                theme="emerald"
+                size="sm"
+                fullWidth={false}
+                triggerClassName="min-w-[175px] font-bold"
                 title="Default meal plan applied to all hotel stays"
-              >
-                {MEAL_PLANS.map((mp) => (
-                  <option key={mp} value={mp}>{mp}</option>
-                ))}
-              </select>
+              />
             </div>
 
             {/* Meal Plan button along with default meal plan to toggle individual stay column if required */}
@@ -1731,15 +1840,15 @@ ${hotelLines}
                     {/* Meal Plan (Optional - toggled via button) */}
                     {showMealPlanCol && (
                       <td className="py-3.5 px-4 bg-emerald-50/30">
-                        <select
+                        <CustomSelect
                           value={acc.mealPlan}
-                          onChange={(e) => handleUpdateHotelRow(index, 'mealPlan', e.target.value)}
-                          className="w-full h-10 bg-white border border-emerald-300 rounded-xl px-3 text-xs font-bold text-slate-800 focus:outline-hidden focus:ring-2 focus:ring-emerald-700 cursor-pointer shadow-2xs"
-                        >
-                          {MEAL_PLANS.map((mp) => (
-                            <option key={mp} value={mp}>{mp}</option>
-                          ))}
-                        </select>
+                          onChange={(val) => handleUpdateHotelRow(index, 'mealPlan', val)}
+                          options={MEAL_PLANS}
+                          theme="emerald"
+                          size="sm"
+                          triggerClassName="bg-white border-emerald-300 font-bold"
+                          ariaLabel="Select Meal Plan"
+                        />
                       </td>
                     )}
 
@@ -1906,15 +2015,15 @@ ${hotelLines}
                     <label className="block text-xs font-bold text-emerald-950">
                       Individual Stay Meal Plan
                     </label>
-                    <select
+                    <CustomSelect
                       value={acc.mealPlan}
-                      onChange={(e) => handleUpdateHotelRow(index, 'mealPlan', e.target.value)}
-                      className="w-full h-11 bg-white border border-emerald-300 rounded-xl px-3 text-xs sm:text-sm text-slate-800 font-semibold focus:outline-hidden focus:ring-2 focus:ring-emerald-700 cursor-pointer shadow-2xs"
-                    >
-                      {MEAL_PLANS.map((mp) => (
-                        <option key={mp} value={mp}>{mp}</option>
-                      ))}
-                    </select>
+                      onChange={(val) => handleUpdateHotelRow(index, 'mealPlan', val)}
+                      options={MEAL_PLANS}
+                      theme="emerald"
+                      size="md"
+                      triggerClassName="bg-white border-emerald-300 font-semibold"
+                      ariaLabel="Individual Stay Meal Plan"
+                    />
                   </div>
                 )}
 
@@ -1980,231 +2089,338 @@ ${hotelLines}
       </div>
 
       {/* 5. PRICING & MARGIN ENGINE */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-3.5 sm:gap-5">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-3.5 sm:gap-5 items-stretch">
         {/* Left Col: Calculation Inputs */}
-        <div className="lg:col-span-7 bg-white rounded-xl sm:rounded-2xl border border-slate-200 p-3.5 sm:p-6 shadow-xs space-y-3.5 sm:space-y-5">
-          <div className="flex items-center gap-2 border-b border-slate-100 pb-2.5 sm:pb-3">
-            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl bg-amber-100 text-amber-900 flex items-center justify-center font-bold shrink-0">
-              <Calculator className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-800" />
-            </div>
-            <div>
-              <h2 className="font-extrabold text-slate-900 text-xs sm:text-base">
-                B2B Margin & Package Value Calculator
-              </h2>
-              <p className="text-[10px] sm:text-xs text-slate-500">
-                Vehicle charge + profit margin percentage or custom amount + round-off adjustment
-              </p>
-            </div>
-          </div>
-
-          <div className="space-y-3 sm:space-y-4 text-xs sm:text-sm">
-            {/* Total Hotel Cost Display */}
-            <div className="flex items-center justify-between p-2.5 sm:p-3 rounded-lg sm:rounded-xl bg-slate-50 border border-slate-200/80">
-              <div className="flex items-center gap-1.5 sm:gap-2 font-bold text-slate-700 text-xs sm:text-sm">
-                <Hotel className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-700 shrink-0" />
-                <span>Total Hotel B2B Cost ({trip.accommodations.length} Stops):</span>
+        <div className="lg:col-span-7 bg-white rounded-xl sm:rounded-2xl border border-slate-200 p-3.5 sm:p-5 shadow-xs space-y-3 sm:space-y-4 flex flex-col justify-between">
+          <div>
+            {/* Header */}
+            <div className="flex items-center gap-2 border-b border-slate-100 pb-2.5 sm:pb-3 mb-3">
+              <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl bg-amber-100 text-amber-900 flex items-center justify-center font-bold shrink-0">
+                <Calculator className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-800" />
               </div>
-              <span className="font-black text-slate-900 text-sm sm:text-base">
-                ₹ {totalHotelB2BCost.toLocaleString('en-IN')}
-              </span>
-            </div>
-
-            {/* Vehicle Charge */}
-            <div className="p-3 sm:p-3.5 rounded-xl bg-slate-50 border border-slate-200/80 space-y-2">
-              <div className="flex items-center justify-between">
-                <label className="flex items-center gap-1.5 sm:gap-2 font-bold text-slate-800 text-xs sm:text-sm">
-                  <Car className="w-4 h-4 text-[#0B2545] shrink-0" />
-                  <span>Vehicle Charge:</span>
-                </label>
-                <div className="flex items-center gap-1.5">
-                  <span className="font-bold text-slate-600 text-sm">₹</span>
-                  <input
-                    type="number"
-                    step={100}
-                    value={vehicleCost}
-                    onChange={(e) => {
-                      const val = Number(e.target.value) || 0;
-                      setVehicleCost(val);
-                      syncPricingToTrip(val, marginType, marginPercent, marginCustomAmount, adjustmentAmount);
-                    }}
-                    placeholder="12000"
-                    className="w-20 sm:w-24 h-11 bg-white border border-slate-300 rounded-xl px-2.5 text-right font-black text-slate-900 text-sm sm:text-base focus:ring-2 focus:ring-[#0B2545] focus:outline-hidden shadow-2xs"
-                  />
-                </div>
-              </div>
-              <div className="flex items-center justify-between text-[10px] sm:text-xs text-slate-500">
-                <span>Fleet: <strong className="text-slate-700">{trip.vehicleType}</strong></span>
+              <div>
+                <h2 className="font-extrabold text-slate-900 text-xs sm:text-base">
+                  B2B Margin & Package Value Calculator
+                </h2>
+                <p className="text-[10px] sm:text-xs text-slate-500">
+                  Base costs + profit margin + round-off adjustment & advance planner
+                </p>
               </div>
             </div>
 
-            {/* Base Cost Sum */}
-            <div className="flex items-center justify-between px-2.5 sm:px-3 py-1.5 sm:py-2 text-[11px] sm:text-xs font-bold text-slate-600 border-b border-slate-100">
-              <span>Combined Base Cost (Hotel + Cab):</span>
-              <span className="font-black text-slate-800">₹ {baseCost.toLocaleString('en-IN')}</span>
-            </div>
-
-            {/* Margin Selector */}
-            <div className="p-3 sm:p-3.5 rounded-xl bg-emerald-50/50 border border-emerald-200 space-y-2.5 sm:space-y-3">
-              <div className="flex items-center justify-between flex-wrap gap-2">
-                <div className="flex items-center gap-1.5 sm:gap-2 font-bold text-emerald-950 text-xs sm:text-sm">
-                  <Percent className="w-4 h-4 text-emerald-700 shrink-0" />
-                  <span>Profit Margin:</span>
-                </div>
-
-                {/* Toggle: % vs Custom */}
-                <div className="flex items-center bg-white p-1 rounded-xl border border-emerald-200">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setMarginType('percentage');
-                      syncPricingToTrip(vehicleCost, 'percentage', marginPercent, marginCustomAmount, adjustmentAmount);
-                    }}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all min-h-[34px] ${
-                      marginType === 'percentage' 
-                        ? 'bg-emerald-700 text-white shadow-xs' 
-                        : 'text-slate-600 hover:text-slate-900'
-                    }`}
-                  >
-                    Percentage (%)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setMarginType('custom');
-                      syncPricingToTrip(vehicleCost, 'custom', marginPercent, marginCustomAmount, adjustmentAmount);
-                    }}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all min-h-[34px] ${
-                      marginType === 'custom' 
-                        ? 'bg-emerald-700 text-white shadow-xs' 
-                        : 'text-slate-600 hover:text-slate-900'
-                    }`}
-                  >
-                    Custom (₹)
-                  </button>
-                </div>
-              </div>
-
-              {marginType === 'percentage' ? (
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-slate-600 font-medium">Margin Percentage:</span>
-                    <div className="flex items-center gap-1.5">
-                      <input
-                        type="number"
-                        min={0}
-                        max={100}
-                        value={marginPercent}
-                        onChange={(e) => {
-                          const val = Number(e.target.value) || 0;
-                          setMarginPercent(val);
-                          syncPricingToTrip(vehicleCost, 'percentage', val, marginCustomAmount, adjustmentAmount);
-                        }}
-                        className="w-16 sm:w-20 h-10 bg-white border border-slate-300 rounded-xl px-2.5 text-right font-black text-slate-900 text-sm focus:ring-2 focus:ring-emerald-600 focus:outline-hidden shadow-2xs"
-                      />
-                      <span className="font-bold text-slate-700 text-sm">%</span>
+            <div className="space-y-3 sm:space-y-3.5 text-xs sm:text-sm">
+              {/* Row 1: Base Costs (Hotels + Vehicle) side-by-side */}
+              <div className="space-y-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  {/* Total Hotel Cost Display */}
+                  <div className="p-2.5 sm:p-3 rounded-xl bg-slate-50 border border-slate-200/80 flex flex-col justify-between min-h-[68px]">
+                    <div className="flex items-center justify-between text-xs text-slate-600 font-bold mb-1">
+                      <span className="flex items-center gap-1.5">
+                        <Hotel className="w-3.5 h-3.5 text-emerald-700 shrink-0" />
+                        Hotel Net Cost
+                      </span>
+                      <span className="text-[10px] font-semibold text-slate-400">
+                        {trip.durationNights}N ({trip.accommodations.length} stops)
+                      </span>
+                    </div>
+                    <div className="font-black text-slate-900 text-sm sm:text-base">
+                      ₹ {totalHotelB2BCost.toLocaleString('en-IN')}
                     </div>
                   </div>
-                  <div className="flex items-center justify-between text-xs text-emerald-800 font-bold pt-0.5">
-                    <span>Calculated Margin:</span>
-                    <span>+ ₹ {marginAmount.toLocaleString('en-IN')}</span>
-                  </div>
-                </div>
-              ) : (
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-slate-600 font-medium">Custom Fixed Margin:</span>
-                  <div className="flex items-center gap-1.5">
-                    <span className="font-bold text-slate-700 text-sm">₹</span>
-                    <input
-                      type="number"
-                      step={500}
-                      value={marginCustomAmount}
-                      onChange={(e) => {
-                        const val = Number(e.target.value) || 0;
-                        setMarginCustomAmount(val);
-                        syncPricingToTrip(vehicleCost, 'custom', marginPercent, val, adjustmentAmount);
-                      }}
-                      className="w-20 sm:w-24 h-10 bg-white border border-slate-300 rounded-xl px-2.5 text-right font-black text-slate-900 text-sm focus:ring-2 focus:ring-emerald-600 focus:outline-hidden shadow-2xs"
-                    />
-                  </div>
-                </div>
-              )}
-            </div>
 
-            {/* Adjustment Entry */}
-            <div className="p-3 sm:p-3.5 rounded-xl bg-slate-50 border border-slate-200/80 space-y-2">
-              <div className="flex items-center justify-between">
-                <div>
-                  <label className="font-bold text-slate-800 block text-xs sm:text-sm">
-                    Adjustment / Round-Off:
-                  </label>
-                  <span className="text-[10px] sm:text-[11px] text-slate-500">
-                    Add or subtract to round off quote
-                  </span>
+                  {/* Vehicle Charge */}
+                  <div className="p-2.5 sm:p-3 rounded-xl bg-slate-50 border border-slate-200/80 flex flex-col justify-between min-h-[68px]">
+                    <div className="flex items-center justify-between text-xs text-slate-700 font-bold mb-1">
+                      <label className="flex items-center gap-1.5 cursor-pointer">
+                        <Car className="w-3.5 h-3.5 text-[#0B2545] shrink-0" />
+                        Vehicle Charge:
+                      </label>
+                      <span className="text-[10px] text-slate-500 font-medium truncate max-w-[110px]" title={trip.vehicleType}>
+                        {trip.vehicleType}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-end gap-1.5">
+                      <span className="font-bold text-slate-600 text-sm">₹</span>
+                      <input
+                        type="number"
+                        step={100}
+                        value={vehicleCost}
+                        onChange={(e) => {
+                          const val = Number(e.target.value) || 0;
+                          setVehicleCost(val);
+                          syncPricingToTrip(val, marginType, marginPercent, marginCustomAmount, adjustmentAmount);
+                        }}
+                        placeholder="12000"
+                        className="w-24 sm:w-28 h-8 sm:h-9 bg-white border border-slate-300 rounded-lg px-2 text-right font-black text-slate-900 text-xs sm:text-sm focus:ring-2 focus:ring-[#0B2545] focus:outline-hidden shadow-2xs"
+                      />
+                    </div>
+                  </div>
                 </div>
-                <div className="flex items-center gap-1.5">
-                  <span className="font-bold text-slate-600 text-sm">₹</span>
-                  <input
-                    type="number"
-                    value={adjustmentAmount}
-                    onChange={(e) => {
-                      const val = Number(e.target.value) || 0;
-                      setAdjustmentAmount(val);
-                      syncPricingToTrip(vehicleCost, marginType, marginPercent, marginCustomAmount, val);
-                    }}
-                    placeholder="0"
-                    className="w-20 sm:w-24 h-10 bg-white border border-slate-300 rounded-xl px-2.5 text-right font-black text-slate-900 text-sm focus:ring-2 focus:ring-[#0B2545] focus:outline-hidden shadow-2xs"
-                  />
+
+                {/* Combined Base Cost Sub-strip */}
+                <div className="flex items-center justify-between px-3 py-1.5 rounded-lg bg-slate-100/70 text-[11px] sm:text-xs font-semibold text-slate-600 border border-slate-200/50">
+                  <span>Combined Base Cost (Hotel + Cab):</span>
+                  <span className="font-black text-slate-800">₹ {baseCost.toLocaleString('en-IN')}</span>
                 </div>
               </div>
 
-              {/* Quick round-off helpers */}
-              <div className="flex items-center gap-2 pt-1 text-xs">
-                <span className="text-slate-500 text-xs font-semibold">Quick:</span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const current = subtotalCost;
-                    const rounded = Math.ceil(current / 500) * 500;
-                    const diff = rounded - current;
-                    setAdjustmentAmount(diff);
-                    syncPricingToTrip(vehicleCost, marginType, marginPercent, marginCustomAmount, diff);
-                  }}
-                  className="px-2.5 py-1 min-h-[32px] rounded-lg bg-white border border-slate-300 text-slate-700 hover:bg-slate-100 font-bold text-xs shadow-2xs"
-                >
-                  ₹500
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const current = subtotalCost;
-                    const rounded = Math.ceil(current / 1000) * 1000;
-                    const diff = rounded - current;
-                    setAdjustmentAmount(diff);
-                    syncPricingToTrip(vehicleCost, marginType, marginPercent, marginCustomAmount, diff);
-                  }}
-                  className="px-2.5 py-1 min-h-[32px] rounded-lg bg-white border border-slate-300 text-slate-700 hover:bg-slate-100 font-bold text-xs shadow-2xs"
-                >
-                  ₹1,000
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setAdjustmentAmount(0);
-                    syncPricingToTrip(vehicleCost, marginType, marginPercent, marginCustomAmount, 0);
-                  }}
-                  className="px-2.5 py-1 min-h-[32px] rounded-lg bg-white border border-slate-300 text-slate-500 hover:bg-slate-100 font-bold text-xs shadow-2xs"
-                >
-                  Reset
-                </button>
+              {/* Row 2: Profit Margin & Adjustment side-by-side */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                {/* Margin Selector Card */}
+                <div className="p-2.5 sm:p-3 rounded-xl bg-emerald-50/50 border border-emerald-200 flex flex-col justify-between space-y-2">
+                  <div className="flex items-center justify-between gap-1 flex-wrap">
+                    <div className="flex items-center gap-1.5 font-bold text-emerald-950 text-xs">
+                      <Percent className="w-3.5 h-3.5 text-emerald-700 shrink-0" />
+                      <span>Profit Margin:</span>
+                    </div>
+
+                    {/* Toggle: % vs Custom */}
+                    <div className="flex items-center bg-white p-0.5 rounded-lg border border-emerald-200 shadow-2xs">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setMarginType('percentage');
+                          syncPricingToTrip(vehicleCost, 'percentage', marginPercent, marginCustomAmount, adjustmentAmount);
+                        }}
+                        className={`px-2 py-0.5 rounded text-[11px] font-bold transition-all cursor-pointer ${
+                          marginType === 'percentage' 
+                            ? 'bg-emerald-700 text-white shadow-xs' 
+                            : 'text-slate-600 hover:text-slate-900'
+                        }`}
+                      >
+                        %
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setMarginType('custom');
+                          syncPricingToTrip(vehicleCost, 'custom', marginPercent, marginCustomAmount, adjustmentAmount);
+                        }}
+                        className={`px-2 py-0.5 rounded text-[11px] font-bold transition-all cursor-pointer ${
+                          marginType === 'custom' 
+                            ? 'bg-emerald-700 text-white shadow-xs' 
+                            : 'text-slate-600 hover:text-slate-900'
+                        }`}
+                      >
+                        ₹ Fixed
+                      </button>
+                    </div>
+                  </div>
+
+                  {marginType === 'percentage' ? (
+                    <div className="flex items-center justify-between gap-2 pt-0.5">
+                      <div className="text-[11px] text-emerald-900 font-bold leading-tight">
+                        <span className="text-[10px] text-emerald-700 block">Calculated Margin:</span>
+                        <span className="text-emerald-800 font-black text-xs">+ ₹ {marginAmount.toLocaleString('en-IN')}</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <input
+                          type="number"
+                          min={0}
+                          max={100}
+                          value={marginPercent}
+                          onChange={(e) => {
+                            const val = Number(e.target.value) || 0;
+                            setMarginPercent(val);
+                            syncPricingToTrip(vehicleCost, 'percentage', val, marginCustomAmount, adjustmentAmount);
+                          }}
+                          className="w-14 sm:w-16 h-8 bg-white border border-slate-300 rounded-lg px-2 text-right font-black text-slate-900 text-xs focus:ring-2 focus:ring-emerald-600 focus:outline-hidden shadow-2xs"
+                        />
+                        <span className="font-bold text-slate-700 text-xs">%</span>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-between gap-2 pt-0.5">
+                      <span className="text-[11px] text-slate-600 font-medium">Custom Fixed:</span>
+                      <div className="flex items-center gap-1">
+                        <span className="font-bold text-slate-700 text-xs">₹</span>
+                        <input
+                          type="number"
+                          step={500}
+                          value={marginCustomAmount}
+                          onChange={(e) => {
+                            const val = Number(e.target.value) || 0;
+                            setMarginCustomAmount(val);
+                            syncPricingToTrip(vehicleCost, 'custom', marginPercent, val, adjustmentAmount);
+                          }}
+                          className="w-20 sm:w-24 h-8 bg-white border border-slate-300 rounded-lg px-2 text-right font-black text-slate-900 text-xs focus:ring-2 focus:ring-emerald-600 focus:outline-hidden shadow-2xs"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Adjustment / Round-Off Card */}
+                <div className="p-2.5 sm:p-3 rounded-xl bg-slate-50 border border-slate-200/80 flex flex-col justify-between space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <label className="font-bold text-slate-800 text-xs block truncate">
+                      Adjustment / Round-Off:
+                    </label>
+                    <div className="flex items-center gap-1">
+                      <span className="font-bold text-slate-600 text-xs">₹</span>
+                      <input
+                        type="number"
+                        value={adjustmentAmount}
+                        onChange={(e) => {
+                          const val = Number(e.target.value) || 0;
+                          setAdjustmentAmount(val);
+                          syncPricingToTrip(vehicleCost, marginType, marginPercent, marginCustomAmount, val);
+                        }}
+                        placeholder="0"
+                        className="w-16 sm:w-20 h-8 bg-white border border-slate-300 rounded-lg px-2 text-right font-black text-slate-900 text-xs focus:ring-2 focus:ring-[#0B2545] focus:outline-hidden shadow-2xs"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Quick round-off helpers */}
+                  <div className="flex items-center gap-1.5 justify-end text-xs">
+                    <span className="text-slate-400 text-[10px] font-semibold">Quick:</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const current = subtotalCost;
+                        const rounded = Math.ceil(current / 500) * 500;
+                        const diff = rounded - current;
+                        setAdjustmentAmount(diff);
+                        syncPricingToTrip(vehicleCost, marginType, marginPercent, marginCustomAmount, diff);
+                      }}
+                      className="px-2 py-0.5 rounded-md bg-white border border-slate-300 text-slate-700 hover:bg-slate-100 font-bold text-[11px] shadow-2xs transition-colors cursor-pointer"
+                    >
+                      ₹500
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const current = subtotalCost;
+                        const rounded = Math.ceil(current / 1000) * 1000;
+                        const diff = rounded - current;
+                        setAdjustmentAmount(diff);
+                        syncPricingToTrip(vehicleCost, marginType, marginPercent, marginCustomAmount, diff);
+                      }}
+                      className="px-2 py-0.5 rounded-md bg-white border border-slate-300 text-slate-700 hover:bg-slate-100 font-bold text-[11px] shadow-2xs transition-colors cursor-pointer"
+                    >
+                      ₹1,000
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAdjustmentAmount(0);
+                        syncPricingToTrip(vehicleCost, marginType, marginPercent, marginCustomAmount, 0);
+                      }}
+                      className="px-2 py-0.5 rounded-md bg-white border border-slate-300 text-slate-500 hover:bg-slate-100 font-bold text-[11px] shadow-2xs transition-colors cursor-pointer"
+                    >
+                      Reset
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Row 3: Booking Advance Percentage Setter & Hotel Coverage */}
+              <div className="p-2.5 sm:p-3 rounded-xl bg-amber-50/70 border border-amber-200 space-y-2">
+                {/* Header row with preset pills and direct percentage input */}
+                <div className="flex items-center justify-between flex-wrap gap-1.5">
+                  <div className="flex items-center gap-1.5 font-bold text-amber-950 text-xs">
+                    <CreditCard className="w-3.5 h-3.5 text-amber-700 shrink-0" />
+                    <span>Booking Advance:</span>
+                  </div>
+
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {/* Preset Buttons */}
+                    <div className="flex items-center gap-1">
+                      {[25, 30, 40, 50].map((pct) => (
+                        <button
+                          key={pct}
+                          type="button"
+                          onClick={() => {
+                            setAdvancePercentage(pct);
+                            syncPricingToTrip(vehicleCost, marginType, marginPercent, marginCustomAmount, adjustmentAmount, pct);
+                          }}
+                          className={`px-1.5 py-0.5 text-[11px] font-bold rounded-md border transition-all cursor-pointer ${
+                            advancePercentage === pct
+                              ? 'bg-amber-600 text-white border-amber-700 shadow-xs'
+                              : 'bg-white text-slate-700 border-amber-200 hover:bg-amber-100'
+                          }`}
+                        >
+                          {pct}%
+                        </button>
+                      ))}
+
+                      {/* Dynamic Hotel Cost button */}
+                      {finalTotalPackageCost > 0 && totalHotelB2BCost > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const exactHotelPct = Math.ceil((totalHotelB2BCost / finalTotalPackageCost) * 100);
+                            const roundedHotelPct = Math.min(95, Math.max(10, Math.ceil(exactHotelPct / 5) * 5));
+                            setAdvancePercentage(roundedHotelPct);
+                            syncPricingToTrip(vehicleCost, marginType, marginPercent, marginCustomAmount, adjustmentAmount, roundedHotelPct);
+                          }}
+                          className="px-1.5 py-0.5 text-[11px] font-extrabold rounded-md bg-emerald-700 hover:bg-emerald-800 text-white border border-emerald-800 transition-all cursor-pointer shadow-2xs"
+                          title={`Calculate exact % needed to cover Hotel B2B Net Cost (₹ ${totalHotelB2BCost.toLocaleString('en-IN')})`}
+                        >
+                          Hotel ({Math.ceil((totalHotelB2BCost / finalTotalPackageCost) * 100)}%)
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Manual Input */}
+                    <div className="flex items-center gap-1 ml-1">
+                      <input
+                        type="number"
+                        min={10}
+                        max={95}
+                        step={5}
+                        value={advancePercentage}
+                        onChange={(e) => {
+                          const val = Math.max(5, Math.min(95, Number(e.target.value) || 40));
+                          setAdvancePercentage(val);
+                          syncPricingToTrip(vehicleCost, marginType, marginPercent, marginCustomAmount, adjustmentAmount, val);
+                        }}
+                        className="w-14 h-7 bg-white border border-amber-300 rounded-md px-1.5 text-right font-black text-amber-950 text-xs focus:ring-2 focus:ring-amber-600 focus:outline-hidden shadow-2xs"
+                      />
+                      <span className="font-bold text-amber-800 text-xs">%</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Live Cross-Check Summary */}
+                <div className="pt-1.5 border-t border-amber-200/80 grid grid-cols-2 gap-2 text-xs">
+                  <div className="bg-white/90 p-2 rounded-lg border border-amber-200 flex flex-col justify-between">
+                    <span className="text-[10px] text-slate-500 block">Advance Payable ({advancePercentage}%):</span>
+                    <span className="font-black text-amber-950 text-xs sm:text-sm">₹ {calculatedAdvanceAmount.toLocaleString('en-IN')}/-</span>
+                  </div>
+                  <div className="bg-white/90 p-2 rounded-lg border border-amber-200 flex flex-col justify-between">
+                    <span className="text-[10px] text-slate-500 block">Balance on Arrival ({100 - advancePercentage}%):</span>
+                    <span className="font-black text-slate-800 text-xs sm:text-sm">₹ {calculatedBalanceAmount.toLocaleString('en-IN')}/-</span>
+                  </div>
+                </div>
+
+                {/* Comparison with Hotel Booking Net Cost */}
+                <div className="flex items-center justify-between text-[11px] pt-0.5">
+                  <span className="text-slate-600 font-medium">
+                    Hotel Net: <strong className="text-slate-900">₹ {totalHotelB2BCost.toLocaleString('en-IN')}</strong>
+                  </span>
+                  {calculatedAdvanceAmount >= totalHotelB2BCost ? (
+                    <span className="text-emerald-800 font-bold bg-emerald-100 px-2 py-0.5 rounded-md text-[10px]">
+                      ✓ Covers Hotel (Buffer: ₹ {(calculatedAdvanceAmount - totalHotelB2BCost).toLocaleString('en-IN')})
+                    </span>
+                  ) : (
+                    <span className="text-amber-900 font-bold bg-amber-200/90 px-2 py-0.5 rounded-md text-[10px]">
+                      ⚠️ ₹ {(totalHotelB2BCost - calculatedAdvanceAmount).toLocaleString('en-IN')} short of Hotel Cost
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
           </div>
         </div>
 
         {/* Right Col: Final Gross Selling Price Summary & WhatsApp Dispatch */}
-        <div className="lg:col-span-5 flex flex-col justify-between gap-3.5 sm:gap-5 bg-gradient-to-b from-[#0B2545] to-[#07192F] text-white rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-md">
-          <div className="space-y-3 sm:space-y-4">
-            <div className="flex items-center justify-between border-b border-white/10 pb-2.5 sm:pb-3">
+        <div className="lg:col-span-5 flex flex-col justify-between bg-gradient-to-b from-[#0B2545] via-[#081f3b] to-[#07192F] text-white rounded-xl sm:rounded-2xl p-4 sm:p-5 shadow-md space-y-3 sm:space-y-3.5">
+          {/* Top Section */}
+          <div className="space-y-2.5 sm:space-y-3">
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-white/10 pb-2">
               <span className="text-[11px] sm:text-xs uppercase tracking-wider font-extrabold text-emerald-400">
                 Agent Gross Package Value
               </span>
@@ -2215,55 +2431,90 @@ ${hotelLines}
 
             {/* Prominent Price Display */}
             <div className="space-y-1">
-              <div className="text-[11px] sm:text-xs text-slate-300 font-medium">
+              <div className="text-[10px] sm:text-[11px] text-slate-300 font-medium uppercase tracking-wider">
                 Final Selling Quotation to Agent:
               </div>
-              <div className="text-2xl sm:text-4xl font-black text-white tracking-tight">
+              <div className="text-2xl sm:text-3xl lg:text-4xl font-black text-white tracking-tight">
                 ₹ {finalTotalPackageCost.toLocaleString('en-IN')}/-
               </div>
-              <div className="text-[11px] sm:text-xs text-emerald-300 font-medium leading-tight">
-                Hotels, Exclusive AC Cab, Driver Bata, Tolls & GST inclusive
+              <div className="flex items-center flex-wrap gap-1.5 pt-1">
+                <span className="inline-flex items-center gap-1 bg-white/10 px-2 py-0.5 rounded text-[10px] text-emerald-300 font-semibold border border-white/10">
+                  ✓ Hotels
+                </span>
+                <span className="inline-flex items-center gap-1 bg-white/10 px-2 py-0.5 rounded text-[10px] text-emerald-300 font-semibold border border-white/10">
+                  ✓ AC Fleet
+                </span>
+                <span className="inline-flex items-center gap-1 bg-white/10 px-2 py-0.5 rounded text-[10px] text-emerald-300 font-semibold border border-white/10">
+                  ✓ Driver Bata
+                </span>
+                <span className="inline-flex items-center gap-1 bg-white/10 px-2 py-0.5 rounded text-[10px] text-emerald-300 font-semibold border border-white/10">
+                  ✓ Tolls & Taxes
+                </span>
               </div>
             </div>
 
-            {/* Quick Breakdown Pills */}
-            <div className="grid grid-cols-2 gap-1.5 sm:gap-2 text-[11px] sm:text-xs pt-1">
-              <div className="bg-white/10 rounded-lg sm:rounded-xl p-2 sm:p-2.5 border border-white/10">
-                <span className="text-slate-400 block text-[10px]">Hotel Base:</span>
-                <span className="font-bold text-white text-xs sm:text-sm">₹ {totalHotelB2BCost.toLocaleString('en-IN')}</span>
+            {/* Financial Breakdown Matrix */}
+            <div className="grid grid-cols-2 gap-2 text-xs pt-1">
+              <div className="bg-white/10 rounded-xl p-2 sm:p-2.5 border border-white/10">
+                <span className="text-slate-400 block text-[10px]">Base Net Cost:</span>
+                <span className="font-bold text-white text-xs sm:text-sm">
+                  ₹ {baseCost.toLocaleString('en-IN')}
+                </span>
+                <span className="text-[10px] text-slate-400 block truncate">
+                  Hotel ₹{totalHotelB2BCost.toLocaleString('en-IN')} + Cab ₹{vehicleCost.toLocaleString('en-IN')}
+                </span>
               </div>
-              <div className="bg-white/10 rounded-lg sm:rounded-xl p-2 sm:p-2.5 border border-white/10">
-                <span className="text-slate-400 block text-[10px]">Vehicle Base:</span>
-                <span className="font-bold text-white text-xs sm:text-sm">₹ {vehicleCost.toLocaleString('en-IN')}</span>
+
+              <div className="bg-white/10 rounded-xl p-2 sm:p-2.5 border border-white/10">
+                <span className="text-slate-400 block text-[10px]">Net B2B Margin:</span>
+                <span className="font-bold text-emerald-300 text-xs sm:text-sm">
+                  + ₹ {(marginAmount + adjustmentAmount).toLocaleString('en-IN')}
+                </span>
+                <span className="text-[10px] text-emerald-400/80 block truncate">
+                  {marginType === 'percentage' ? `${marginPercent}% margin` : 'Custom margin'}
+                  {adjustmentAmount !== 0 && ` (${adjustmentAmount > 0 ? '+' : ''}₹${adjustmentAmount})`}
+                </span>
               </div>
-              <div className="bg-white/10 rounded-lg sm:rounded-xl p-2 sm:p-2.5 border border-white/10">
-                <span className="text-slate-400 block text-[10px]">Profit Margin:</span>
-                <span className="font-bold text-emerald-300 text-xs sm:text-sm">+ ₹ {marginAmount.toLocaleString('en-IN')}</span>
+
+              <div className="bg-white/10 rounded-xl p-2 sm:p-2.5 border border-white/10">
+                <span className="text-slate-400 block text-[10px]">Advance ({advancePercentage}%):</span>
+                <span className="font-bold text-amber-300 text-xs sm:text-sm">
+                  ₹ {calculatedAdvanceAmount.toLocaleString('en-IN')}
+                </span>
+                <span className="text-[10px] text-amber-200/70 block truncate">
+                  Payable for booking
+                </span>
               </div>
-              <div className="bg-white/10 rounded-lg sm:rounded-xl p-2 sm:p-2.5 border border-white/10">
-                <span className="text-slate-400 block text-[10px]">Adjustment:</span>
-                <span className="font-bold text-amber-300 text-xs sm:text-sm">{adjustmentAmount >= 0 ? `+ ₹ ${adjustmentAmount}` : `- ₹ ${Math.abs(adjustmentAmount)}`}</span>
+
+              <div className="bg-white/10 rounded-xl p-2 sm:p-2.5 border border-white/10">
+                <span className="text-slate-400 block text-[10px]">Balance on Arrival:</span>
+                <span className="font-bold text-emerald-300 text-xs sm:text-sm">
+                  ₹ {calculatedBalanceAmount.toLocaleString('en-IN')}
+                </span>
+                <span className="text-[10px] text-slate-400 block truncate">
+                  {100 - advancePercentage}% on tour start
+                </span>
               </div>
             </div>
 
             {/* Agent WhatsApp Direct Send */}
-            <div className="pt-1.5 space-y-1">
-              <label className="text-[11px] sm:text-xs font-bold text-slate-300 flex items-center justify-between">
+            <div className="pt-0.5 space-y-1">
+              <label className="text-[10px] sm:text-[11px] font-bold text-slate-300 flex items-center justify-between">
                 <span>Agent WhatsApp:</span>
                 <span className="text-[10px] text-slate-400 font-normal">Optional 1-click send</span>
               </label>
-              <div className="flex items-center gap-1.5 sm:gap-2">
+              <div className="flex items-center gap-1.5">
                 <input
                   type="text"
                   value={agentPhoneInput}
                   onChange={(e) => setAgentPhoneInput(e.target.value)}
                   placeholder="e.g. 919876543210"
-                  className="flex-1 bg-white/10 border border-white/20 rounded-lg sm:rounded-xl px-2.5 sm:px-3 py-1.5 sm:py-2 text-xs font-medium text-white placeholder:text-slate-400 focus:bg-white/20 focus:outline-hidden min-w-0"
+                  className="flex-1 bg-white/10 border border-white/20 rounded-lg px-2.5 py-1.5 text-xs font-medium text-white placeholder:text-slate-400 focus:bg-white/20 focus:outline-hidden min-w-0"
                 />
                 <button
                   type="button"
                   onClick={() => handleDirectWhatsAppSend()}
-                  className="bg-emerald-500 hover:bg-emerald-400 text-emerald-950 font-bold text-xs px-3 sm:px-3.5 py-1.5 sm:py-2 rounded-lg sm:rounded-xl transition-all flex items-center gap-1.5 shrink-0 shadow-xs active:scale-95"
+                  className="bg-emerald-500 hover:bg-emerald-400 text-emerald-950 font-bold text-xs px-3 py-1.5 rounded-lg transition-all flex items-center gap-1 shrink-0 shadow-xs active:scale-95 cursor-pointer"
                 >
                   <Send className="w-3.5 h-3.5" />
                   <span>Send</span>
@@ -2273,11 +2524,11 @@ ${hotelLines}
           </div>
 
           {/* Action Buttons */}
-          <div className="space-y-2 pt-3 border-t border-white/10">
+          <div className="space-y-2 pt-2 border-t border-white/10">
             <button
               type="button"
               onClick={() => handleCopyWhatsAppQuote()}
-              className="w-full py-2.5 sm:py-3 px-3 sm:px-4 rounded-lg sm:rounded-xl font-black text-xs sm:text-sm bg-emerald-500 hover:bg-emerald-400 text-emerald-950 transition-all shadow-md flex items-center justify-center gap-2 active:scale-98"
+              className="w-full py-2.5 px-3 rounded-lg sm:rounded-xl font-black text-xs sm:text-sm bg-emerald-500 hover:bg-emerald-400 text-emerald-950 transition-all shadow-md flex items-center justify-center gap-2 active:scale-98 cursor-pointer"
             >
               {copiedQuote ? <Check className="w-4 h-4 stroke-[3]" /> : <Copy className="w-4 h-4" />}
               <span>{copiedQuote ? 'Quote Copied!' : 'Copy WhatsApp Quote'}</span>
@@ -2287,7 +2538,7 @@ ${hotelLines}
               <button
                 type="button"
                 onClick={() => onNavigateToActivities?.()}
-                className="py-2 px-2.5 rounded-lg sm:rounded-xl font-bold text-[11px] sm:text-xs bg-white/10 hover:bg-white/20 border border-white/20 text-white transition-all flex items-center justify-center gap-1"
+                className="py-2 px-2 rounded-lg font-bold text-[11px] sm:text-xs bg-white/10 hover:bg-white/20 border border-white/20 text-white transition-all flex items-center justify-center gap-1 cursor-pointer"
               >
                 <CheckSquare className="w-3.5 h-3.5 text-teal-300" />
                 <span>Activities ({trip.days.reduce((s, d) => s + d.activities.filter(a => a.isSelected).length, 0)})</span>
@@ -2296,7 +2547,7 @@ ${hotelLines}
               <button
                 type="button"
                 onClick={() => onNavigateToPreview?.()}
-                className="py-2 px-2.5 rounded-lg sm:rounded-xl font-bold text-[11px] sm:text-xs bg-white/10 hover:bg-white/20 border border-white/20 text-white transition-all flex items-center justify-center gap-1"
+                className="py-2 px-2 rounded-lg font-bold text-[11px] sm:text-xs bg-white/10 hover:bg-white/20 border border-white/20 text-white transition-all flex items-center justify-center gap-1 cursor-pointer"
               >
                 <Printer className="w-3.5 h-3.5 text-amber-300" />
                 <span>View Full PDF</span>

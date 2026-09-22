@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { DestinationCatalogItem, ActivityItem } from '@/types/itinerary';
 import { INITIAL_DESTINATIONS_CATALOG } from '@/lib/sample-data';
+import { CustomSelect } from '@/components/CustomSelect';
 
 interface DestinationCatalogManagerProps {
   catalog: DestinationCatalogItem[];
@@ -225,31 +226,32 @@ export const DestinationCatalogManager: React.FC<DestinationCatalogManagerProps>
                       />
                     </div>
                     <div className="sm:col-span-3">
-                      <select
+                      <CustomSelect
                         value={actTiming}
-                        onChange={(e) => setActTiming(e.target.value as ActivityItem['timing'])}
-                        className="w-full text-xs px-3 py-2 border border-slate-300 rounded-lg bg-white focus:ring-2 focus:ring-emerald-600 focus:outline-hidden"
-                      >
-                        <option value="Morning">Morning</option>
-                        <option value="Afternoon">Afternoon</option>
-                        <option value="Evening">Evening</option>
-                        <option value="Full Day">Full Day</option>
-                      </select>
+                        onChange={(val) => setActTiming(val as ActivityItem['timing'])}
+                        options={['Morning', 'Afternoon', 'Evening', 'Full Day']}
+                        theme="emerald"
+                        size="md"
+                        ariaLabel="Sightseeing Timing"
+                      />
                     </div>
                     <div className="sm:col-span-3">
-                      <select
+                      <CustomSelect
                         value={actCategory}
-                        onChange={(e) => setActCategory(e.target.value as ActivityItem['category'])}
-                        className="w-full text-xs px-3 py-2 border border-slate-300 rounded-lg bg-white focus:ring-2 focus:ring-emerald-600 focus:outline-hidden"
-                      >
-                        <option value="Sightseeing">Sightseeing</option>
-                        <option value="Nature">Nature</option>
-                        <option value="Cultural">Cultural</option>
-                        <option value="Adventure">Adventure</option>
-                        <option value="Relaxation">Relaxation</option>
-                        <option value="Heritage">Heritage</option>
-                        <option value="Shopping">Shopping</option>
-                      </select>
+                        onChange={(val) => setActCategory(val as ActivityItem['category'])}
+                        options={[
+                          'Sightseeing',
+                          'Nature',
+                          'Cultural',
+                          'Adventure',
+                          'Relaxation',
+                          'Heritage',
+                          'Shopping'
+                        ]}
+                        theme="emerald"
+                        size="md"
+                        ariaLabel="Sightseeing Category"
+                      />
                     </div>
                   </div>
 

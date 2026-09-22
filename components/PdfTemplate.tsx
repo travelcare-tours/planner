@@ -8,6 +8,7 @@ import {
   Car, 
   Clock, 
   CheckCircle2, 
+  XCircle,
   Hotel, 
   Compass, 
   ShieldCheck, 
@@ -28,50 +29,28 @@ interface PdfTemplateProps {
   trip: TripDetails;
 }
 
-// Authentic UPI App Transparent SVG Logos (No white box, no borders)
+// Official UPI App Logos from /public
 const UpiLogoBadge = () => (
-  <span className="inline-flex items-center" title="UPI (Unified Payments Interface)">
-    <svg className="h-4 w-auto" viewBox="0 0 54 18" fill="none">
-      <polygon points="11,1 4,17 0,17 7,1" fill="#00783E" />
-      <polygon points="19,1 12,17 8,17 15,1" fill="#F37021" />
-      <text x="22" y="14" fill="#FFFFFF" fontWeight="900" fontSize="13" fontFamily="system-ui, -apple-system, sans-serif" letterSpacing="0.8">UPI</text>
-    </svg>
+  <span className="inline-flex items-center justify-center px-2 py-1 bg-white rounded-md shadow-2xs border border-slate-200/90 h-7" title="UPI">
+    <img src="/upi-ar21.svg" alt="UPI" className="h-4 w-auto object-contain max-h-5" />
   </span>
 );
 
 const GPayLogoBadge = () => (
-  <span className="inline-flex items-center" title="Google Pay">
-    <svg className="h-4 w-auto" viewBox="0 0 56 18" fill="none">
-      <g transform="translate(0, 1)">
-        <path d="M15.68 8.18c0-.57-.05-1.11-.14-1.64H8v3.09h4.3a3.68 3.68 0 0 1-1.6 2.41v2.01h2.59c1.52-1.4 2.39-3.46 2.39-5.87z" fill="#4285F4"/>
-        <path d="M8 16c2.16 0 3.97-.71 5.3-1.95l-2.59-2.01c-.72.48-1.64.76-2.71.76-2.08 0-3.84-1.4-4.47-3.32H.9v2.07C2.21 14.15 4.9 16 8 16z" fill="#34A853"/>
-        <path d="M3.53 9.48c-.16-.48-.25-1-.25-1.48s.09-1 .25-1.48V4.45H.9A7.996 7.996 0 0 0 0 8c0 1.29.31 2.51.9 3.55l2.63-2.07z" fill="#FBBC04"/>
-        <path d="M8 3.18c1.17 0 2.23.4 3.06 1.2l2.29-2.3C11.97.79 10.16 0 8 0 4.9 0 2.21 1.85.9 4.45l2.63 2.07C4.16 4.58 5.92 3.18 8 3.18z" fill="#EA4335"/>
-      </g>
-      <text x="19" y="13.5" fill="#FFFFFF" fontFamily="system-ui, -apple-system, sans-serif" fontWeight="700" fontSize="12" letterSpacing="-0.2">Pay</text>
-    </svg>
+  <span className="inline-flex items-center justify-center px-2 py-1 bg-white rounded-md shadow-2xs border border-slate-200/90 h-7" title="Google Pay">
+    <img src="/google-pay-icon.svg" alt="Google Pay" className="h-4.5 w-auto object-contain max-h-5" />
   </span>
 );
 
 const PhonePeLogoBadge = () => (
-  <span className="inline-flex items-center gap-1" title="PhonePe">
-    <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none">
-      <path 
-        d="M10.206 9.941h2.949v4.692c-.402.201-.938.268-1.34.268-1.072 0-1.609-.536-1.609-1.743V9.941zm13.47 4.816c-1.523 6.449-7.985 10.442-14.433 8.919C2.794 22.154-1.199 15.691.324 9.243C1.847 2.794 8.309-1.199 14.757.324c6.449 1.523 10.442 7.985 8.919 14.433zm-6.231-5.888a.887.887 0 0 0-.871-.871h-1.609l-3.686-4.222c-.335-.402-.871-.536-1.407-.402l-1.274.401c-.201.067-.268.335-.134.469l4.021 3.82H6.386c-.201 0-.335.134-.335.335v.67c0 .469.402.871.871.871h.938v3.217c0 2.413 1.273 3.82 3.418 3.82.67 0 1.206-.067 1.877-.335v2.145c0 .603.469 1.072 1.072 1.072h.938a.432.432 0 0 0 .402-.402V9.874h1.542c.201 0 .335-.134.335-.335v-.67z" 
-        fill="#A855F7"
-      />
-    </svg>
-    <span className="font-bold text-[11px] text-white tracking-tight">Phone<span className="text-purple-300">Pe</span></span>
+  <span className="inline-flex items-center justify-center px-2 py-1 bg-white rounded-md shadow-2xs border border-slate-200/90 h-7" title="PhonePe">
+    <img src="/phonepe-icon.svg" alt="PhonePe" className="h-4.5 w-auto object-contain max-h-5" />
   </span>
 );
 
 const PaytmLogoBadge = () => (
-  <span className="inline-flex items-center" title="Paytm">
-    <svg className="h-4 w-auto" viewBox="0 0 54 18" fill="none">
-      <text x="0" y="14" fill="#00BAF2" fontWeight="900" fontSize="14" fontFamily="system-ui, -apple-system, sans-serif" letterSpacing="-0.3">
-        Pay<tspan fill="#FFFFFF">tm</tspan>
-      </text>
-    </svg>
+  <span className="inline-flex items-center justify-center px-2 py-1 bg-white rounded-md shadow-2xs border border-slate-200/90 h-7" title="Paytm">
+    <img src="/paytm-icon.svg" alt="Paytm" className="h-3.5 w-auto object-contain max-h-5" />
   </span>
 );
 
@@ -86,7 +65,7 @@ const PageHeader: React.FC<{ pageNum?: number }> = () => (
       <img 
         src={TC_LOGO_BASE64} 
         alt="Travel Care Tours Pvt Ltd" 
-        className="h-14 sm:h-16 w-auto object-contain max-h-18"
+        className="h-14 w-auto object-contain max-h-14"
         style={{ height: '56px', width: 'auto', maxHeight: '56px', objectFit: 'contain' }}
         onError={(e) => {
           e.currentTarget.style.display = 'none';
@@ -150,19 +129,23 @@ export const PdfTemplate: React.FC<PdfTemplateProps> = ({ trip }) => {
   };
 
   const netAmount = parseCostToNumber(trip.totalPackageCost);
-  // Strict validator strain: Advance amount (70%) MUST always be strictly less than Net amount
-  const advance70 = Math.min(Math.round(netAmount * 0.70), netAmount > 0 ? netAmount - 1 : 0);
-  const balancePayable = Math.max(0, netAmount - advance70);
+  // Dynamic advance percentage (defaults to 40% if not set)
+  const advancePct = typeof trip.advancePercentage === 'number' && trip.advancePercentage > 0 && trip.advancePercentage < 100
+    ? trip.advancePercentage
+    : 40;
+  const advanceAmount = Math.min(Math.round(netAmount * (advancePct / 100)), netAmount > 0 ? netAmount - 1 : 0);
+  const balancePayable = Math.max(0, netAmount - advanceAmount);
+  const balancePct = 100 - advancePct;
   const advance100 = netAmount;
 
   // Statutory UPI limit: UPI transactions are capped at ₹ 1,00,000 (1 Lakh).
   // If the advance amount exceeds 1 Lakh, hide QR and UPI pay button.
-  const isUpiEligible = advance70 > 0 && advance70 <= 100000;
+  const isUpiEligible = advanceAmount > 0 && advanceAmount <= 100000;
 
   const upiId = 'Vyapar.175694334138@hdfcbank';
   const payeeName = 'TRAVEL CARE TOURS PVT LTD';
   // Deep-link URI for UPI payment with prefilled payee and advance amount
-  const upiPayLink = `upi://pay?pa=${upiId}&pn=${encodeURIComponent(payeeName)}&am=${advance70}&cu=INR&tn=${encodeURIComponent(`Booking Advance ${quoteRef}`)}`;
+  const upiPayLink = `upi://pay?pa=${upiId}&pn=${encodeURIComponent(payeeName)}&am=${advanceAmount}&cu=INR&tn=${encodeURIComponent(`Booking Advance ${quoteRef}`)}`;
 
   useEffect(() => {
     if (!isUpiEligible) return;
@@ -313,23 +296,40 @@ export const PdfTemplate: React.FC<PdfTemplateProps> = ({ trip }) => {
               </div>
             </div>
 
-            {/* Route Breadcrumb & Chauffeur Hubs */}
-            <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 text-xs">
-              <div className="sm:col-span-7 bg-white border border-slate-200 rounded-lg p-2.5 shadow-2xs">
-                <div className="text-[10px] uppercase font-bold text-slate-500 mb-1">Route Corridor</div>
-                <div className="font-semibold text-slate-800 leading-snug text-xs">
-                  {trip.routeSummary || `${trip.pickupLocation} → Munnar → Thekkady → Alleppey → ${trip.dropoffLocation}`}
-                </div>
+            {/* Route Breadcrumb */}
+            <div className="bg-white border border-slate-200 rounded-lg p-2.5 shadow-2xs">
+              <div className="text-[10px] uppercase font-bold text-slate-500 mb-1">Route Corridor</div>
+              <div className="font-semibold text-slate-800 leading-snug text-xs">
+                {trip.routeSummary || `${trip.pickupLocation} → Munnar → Thekkady → Alleppey → ${trip.dropoffLocation}`}
               </div>
+            </div>
 
-              <div className="sm:col-span-5 bg-white border border-slate-200 rounded-lg p-2.5 shadow-2xs">
-                <div className="text-[10px] uppercase font-bold text-teal-700 mb-1 flex items-center gap-1">
-                  <Car className="w-3 h-3" />
+            {/* Chauffeur Hubs & Transfers */}
+            <div className="bg-white border border-slate-200 rounded-lg p-2.5 shadow-2xs">
+              <div className="flex items-center justify-between gap-2 mb-2 border-b border-slate-100 pb-1.5">
+                <div className="text-[10px] uppercase font-bold text-teal-700 flex items-center gap-1.5">
+                  <Car className="w-3.5 h-3.5 text-teal-700" />
                   Chauffeur & Transfers
                 </div>
-                <div className="text-[11px] text-slate-700 space-y-0.5">
-                  <div>Pickup: <strong className="text-slate-900">{trip.pickupLocation}</strong> ({trip.pickupDate})</div>
-                  <div>Drop-off: <strong className="text-slate-900">{trip.dropoffLocation}</strong> ({trip.dropoffDate})</div>
+                <div className="text-[10px] text-slate-500 font-medium">
+                  Vehicle: <strong className="text-slate-800">{trip.vehicleType}</strong>
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between gap-2 bg-slate-50/80 rounded-md px-2.5 py-1 border border-slate-100">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="text-[9px] uppercase font-bold text-emerald-800 bg-emerald-100/90 px-1.5 py-0.5 rounded tracking-wider shrink-0">Pickup</span>
+                    <span className="font-semibold text-slate-900 text-xs truncate">{trip.pickupLocation}</span>
+                  </div>
+                  <span className="text-slate-500 text-[10px] font-medium shrink-0">({trip.pickupDate})</span>
+                </div>
+
+                <div className="flex items-center justify-between gap-2 bg-slate-50/80 rounded-md px-2.5 py-1 border border-slate-100">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="text-[9px] uppercase font-bold text-rose-800 bg-rose-100/90 px-1.5 py-0.5 rounded tracking-wider shrink-0">Drop-off</span>
+                    <span className="font-semibold text-slate-900 text-xs truncate">{trip.dropoffLocation}</span>
+                  </div>
+                  <span className="text-slate-500 text-[10px] font-medium shrink-0">({trip.dropoffDate})</span>
                 </div>
               </div>
             </div>
@@ -629,8 +629,8 @@ export const PdfTemplate: React.FC<PdfTemplateProps> = ({ trip }) => {
                 <strong className="text-emerald-400 font-semibold">{trip.advancePaid && trip.advancePaid !== '₹ 25,000.00' ? trip.advancePaid : '₹ 0/-'}</strong>
               </div>
               <div>
-                <span className="text-slate-400 text-[10px] block">Booking Advance (70%)</span>
-                <strong className="text-amber-300">₹ {advance70.toLocaleString('en-IN')}/-</strong>
+                <span className="text-slate-400 text-[10px] block">Booking Advance ({advancePct}%)</span>
+                <strong className="text-amber-300">₹ {advanceAmount.toLocaleString('en-IN')}/-</strong>
               </div>
             </div>
           </div>
@@ -639,10 +639,10 @@ export const PdfTemplate: React.FC<PdfTemplateProps> = ({ trip }) => {
           <div className="mb-3 p-2.5 bg-emerald-50/70 border border-emerald-200 rounded-xl text-xs text-slate-700 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-emerald-600"></span>
-              <span><strong>Advance Milestone:</strong> 70% (₹ {advance70.toLocaleString('en-IN')}/-) due on or before 30 days before tour start</span>
+              <span><strong>Advance Milestone:</strong> {advancePct}% (₹ {advanceAmount.toLocaleString('en-IN')}/-) due on or before 30 days before tour start</span>
             </div>
             <div className="text-[11px] font-bold text-emerald-900">
-              Balance (30%): ₹ {balancePayable.toLocaleString('en-IN')}/-
+              Balance ({balancePct}%): ₹ {balancePayable.toLocaleString('en-IN')}/-
             </div>
           </div>
 
@@ -674,25 +674,25 @@ export const PdfTemplate: React.FC<PdfTemplateProps> = ({ trip }) => {
             </div>
 
             {/* Exclusions */}
-            <div className="border border-slate-200 bg-slate-50/50 rounded-xl p-3.5">
-              <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wide flex items-center gap-1.5 mb-2">
-                <span className="w-3.5 h-3.5 rounded-full bg-slate-200 text-slate-600 flex items-center justify-center text-[9px] font-bold">✕</span>
+            <div className="border border-rose-200 bg-rose-50/20 rounded-xl p-3.5">
+              <h3 className="text-xs font-bold text-rose-950 uppercase tracking-wide flex items-center gap-1.5 mb-2">
+                <XCircle className="w-3.5 h-3.5 text-rose-700" />
                 Package Exclusions
               </h3>
-              <ul className="text-[11px] text-slate-600 space-y-1.5">
+              <ul className="text-[11px] text-slate-700 space-y-1.5">
                 {trip.exclusions && trip.exclusions.length > 0 ? (
                   trip.exclusions.map((item, idx) => (
                     <li key={idx} className="flex items-start gap-1.5">
-                      <span className="text-slate-400 font-bold text-xs leading-none">•</span>
+                      <span className="text-rose-600 font-bold text-xs leading-none">✕</span>
                       <span className="leading-tight">{item}</span>
                     </li>
                   ))
                 ) : (
                   <>
-                    <li className="flex items-start gap-1.5"><span className="text-slate-400">•</span><span>Airfare or train tickets to / from Kerala</span></li>
-                    <li className="flex items-start gap-1.5"><span className="text-slate-400">•</span><span>Monument entrance tickets, safaris, boating & activity fees</span></li>
-                    <li className="flex items-start gap-1.5"><span className="text-slate-400">•</span><span>Personal expenses such as laundry, phone calls, beverages & tips</span></li>
-                    <li className="flex items-start gap-1.5"><span className="text-slate-400">•</span><span>Any cost arising due to unforeseen flight delays or roadblock</span></li>
+                    <li className="flex items-start gap-1.5"><span className="text-rose-600 font-bold text-xs">✕</span><span>Airfare or train tickets to / from Kerala</span></li>
+                    <li className="flex items-start gap-1.5"><span className="text-rose-600 font-bold text-xs">✕</span><span>Monument entrance tickets, safaris, boating & activity fees</span></li>
+                    <li className="flex items-start gap-1.5"><span className="text-rose-600 font-bold text-xs">✕</span><span>Personal expenses such as laundry, phone calls, beverages & tips</span></li>
+                    <li className="flex items-start gap-1.5"><span className="text-rose-600 font-bold text-xs">✕</span><span>Any cost arising due to unforeseen flight delays or roadblock</span></li>
                   </>
                 )}
               </ul>
@@ -776,12 +776,12 @@ export const PdfTemplate: React.FC<PdfTemplateProps> = ({ trip }) => {
                           rel="noopener noreferrer"
                           className="inline-flex items-center gap-2 px-3.5 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl text-xs font-bold shadow-sm transition-all hover:scale-[1.02]"
                         >
-                          <span>Direct Link to Pay 70% Advance (₹ {advance70.toLocaleString('en-IN')})</span>
+                          <span>Direct Link to Pay {advancePct}% Advance (₹ {advanceAmount.toLocaleString('en-IN')})</span>
                           <ExternalLink className="w-3.5 h-3.5 text-emerald-200" />
                         </a>
                       </div>
-                      {/* UPI Logos outside the button - Transparent SVGs */}
-                      <div className="flex items-center gap-2.5 flex-wrap pt-1">
+                      {/* Supported UPI App Logos */}
+                      <div className="flex items-center gap-2 flex-wrap pt-1">
                         <span className="text-[10px] text-emerald-300 font-medium">Supported Apps:</span>
                         <UpiLogoBadge />
                         <GPayLogoBadge />
@@ -829,7 +829,7 @@ export const PdfTemplate: React.FC<PdfTemplateProps> = ({ trip }) => {
                       </div>
                     )}
                     <div className="text-[10px] font-bold text-emerald-900">
-                      70% Advance: ₹ {advance70.toLocaleString('en-IN')}/-
+                      {advancePct}% Advance: ₹ {advanceAmount.toLocaleString('en-IN')}/-
                     </div>
                     <div className="text-[9px] text-slate-500 mt-0.5">
                       Scan or tap with GPay, PhonePe, Paytm or any UPI App
@@ -866,11 +866,11 @@ export const PdfTemplate: React.FC<PdfTemplateProps> = ({ trip }) => {
               <ul className="text-slate-700 space-y-2 text-[11px] leading-relaxed">
                 <li className="flex items-start gap-1.5">
                   <span className="text-emerald-700 font-bold">•</span>
-                  <span><strong>On or before 30 days before service starts:</strong> 70% booking advance (<strong>₹ {advance70.toLocaleString('en-IN')}/-</strong>).</span>
+                  <span><strong>On or before 30 days before service starts:</strong> {advancePct}% booking advance (<strong>₹ {advanceAmount.toLocaleString('en-IN')}/-</strong>).</span>
                 </li>
                 <li className="flex items-start gap-1.5">
                   <span className="text-emerald-700 font-bold">•</span>
-                  <span><strong>Balance payable on arrival / 10 days before tour:</strong> Remaining 30% (<strong>₹ {balancePayable.toLocaleString('en-IN')}/-</strong>).</span>
+                  <span><strong>Balance payable on arrival / 10 days before tour:</strong> Remaining {balancePct}% (<strong>₹ {balancePayable.toLocaleString('en-IN')}/-</strong>).</span>
                 </li>
               </ul>
             </div>

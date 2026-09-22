@@ -373,6 +373,7 @@ export const SAMPLE_TRIP: TripDetails = {
   vehicleCharge: 14500,
   marginType: 'percentage',
   marginPercent: 20,
+  advancePercentage: 40,
   marginCustomAmount: 6000,
   adjustmentAmount: 0,
   inclusions: [

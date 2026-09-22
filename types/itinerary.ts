@@ -76,6 +76,7 @@ export interface TripDetails {
   marginPercent?: number;
   marginCustomAmount?: number | string;
   adjustmentAmount?: number | string;
+  advancePercentage?: number;
 }
 
 export interface DestinationCatalogItem {

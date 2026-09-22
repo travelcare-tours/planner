@@ -1,7 +1,9 @@
 'use client';
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useSyncExternalStore } from 'react';
 import { createPortal } from 'react-dom';
+
+const emptySubscribe = () => () => {};
 import { 
   Compass, 
   FileText, 
@@ -22,6 +24,7 @@ import {
   BookOpen,
   ArrowRight,
   LayoutGrid,
+  Table,
   X
 } from 'lucide-react';
 import { StaffUser } from '@/types/itinerary';
@@ -34,6 +37,7 @@ interface NavbarProps {
   onLogout: () => void;
   onOpenLogin: () => void;
   onOpenImport: () => void;
+  onOpenGoogleSheets?: () => void;
   onPrint: () => void;
   onShareWhatsApp: () => void;
   voucherNumber: string;
@@ -46,17 +50,16 @@ export const Navbar: React.FC<NavbarProps> = ({
   onLogout,
   onOpenLogin,
   onOpenImport,
+  onOpenGoogleSheets,
   onPrint,
   onShareWhatsApp,
   voucherNumber,
 }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [mounted, setMounted] = useState(false);
+  const isMounted = useSyncExternalStore(emptySubscribe, () => true, () => false);
   const menuRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  const mobileSheetRef = useRef<HTMLDivElement>(null);
+  const mobileTriggerRef = useRef<HTMLButtonElement>(null);
 
   // Lock body scroll when mobile menu is open to prevent background scrolling and eliminate double scrollbars
   useEffect(() => {
@@ -70,12 +73,23 @@ export const Navbar: React.FC<NavbarProps> = ({
     };
   }, [isMenuOpen]);
 
-  // Close menu on click outside
+  // Close menu on click outside (check both desktop dropdown and mobile portal bottom sheet)
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
-        setIsMenuOpen(false);
+      const target = event.target as Node;
+      // If click is inside desktop menu button/dropdown
+      if (menuRef.current && menuRef.current.contains(target)) {
+        return;
       }
+      // If click is on mobile trigger button
+      if (mobileTriggerRef.current && mobileTriggerRef.current.contains(target)) {
+        return;
+      }
+      // If click is inside mobile bottom sheet content
+      if (mobileSheetRef.current && mobileSheetRef.current.contains(target)) {
+        return;
+      }
+      setIsMenuOpen(false);
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
@@ -154,21 +168,16 @@ export const Navbar: React.FC<NavbarProps> = ({
                 id="nav-menu-bar-dropdown"
                 onClick={() => setIsMenuOpen(!isMenuOpen)}
                 className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-black transition-all border ${
-                  isMenuOpen || currentTab === 'editor' || currentTab === 'catalog'
+                  isMenuOpen || currentTab === 'catalog'
                     ? 'bg-slate-900 text-white border-slate-700 shadow-md ring-2 ring-emerald-500/20'
                     : 'bg-white hover:bg-slate-50 text-slate-800 border-slate-300 shadow-2xs'
                 }`}
-                title="Menu Bar: Access V1 Trip Page, Activity Catalog, and Import Planner Data"
+                title="Menu Bar: Access Destination Catalog and Import Planner Data"
               >
                 <div className="p-1 rounded bg-amber-400 text-slate-950 font-black flex items-center justify-center">
                   <Menu className="w-3.5 h-3.5 stroke-[2.5]" />
                 </div>
                 <span>Menu Bar</span>
-                {currentTab === 'editor' && (
-                  <span className="px-1.5 py-0.2 rounded text-[9px] bg-amber-400 text-slate-950 font-black uppercase">
-                    V1 Trip
-                  </span>
-                )}
                 {currentTab === 'catalog' && (
                   <span className="px-1.5 py-0.2 rounded text-[9px] bg-indigo-500 text-white font-black uppercase">
                     Catalog
@@ -181,89 +190,91 @@ export const Navbar: React.FC<NavbarProps> = ({
               {isMenuOpen && (
                 <>
                   <div 
-                    className="fixed inset-0 z-40 bg-slate-900/10 backdrop-blur-2xs"
+                    className="fixed inset-0 z-40 bg-slate-900/20 backdrop-blur-2xs animate-in fade-in duration-150"
                     onClick={() => setIsMenuOpen(false)}
                   />
-                  <div className="absolute left-0 mt-3 w-88 sm:w-96 bg-white rounded-2xl shadow-2xl border border-slate-200/90 p-3 z-50 animate-in fade-in-50 slide-in-from-top-3 duration-200">
-                    <div className="flex items-center justify-between px-2 pb-2.5 mb-1.5 border-b border-slate-100">
+                  <div className="absolute left-0 mt-3 w-88 sm:w-96 bg-white/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-slate-200/90 p-3.5 z-50 animate-in fade-in-50 slide-in-from-top-3 duration-200 ring-1 ring-slate-900/5">
+                    {/* Top Anchor Caret */}
+                    <div className="absolute -top-1.5 left-7 w-3 h-3 bg-white border-t border-l border-slate-200/90 rotate-45 rounded-tl-xs shadow-2xs" />
+
+                    <div className="flex items-center justify-between px-2 pb-2.5 mb-2 border-b border-slate-100">
                       <div className="flex items-center gap-2">
                         <div className="w-2 h-4 rounded-full bg-emerald-600" />
-                        <span className="text-xs font-bold text-slate-900 uppercase tracking-wider">
+                        <span className="text-xs font-black text-slate-900 uppercase tracking-wider">
                           Menu Bar Workspace
                         </span>
                       </div>
-                      <span className="text-[10px] text-slate-400 font-medium">Quick Access</span>
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 font-bold uppercase tracking-wider">Quick Access</span>
                     </div>
 
-                    <div className="space-y-1.5">
-                      {/* 1. V1 Trip Page */}
+                    <div className="space-y-2">
+                      {/* 1. Destination Catalog */}
                       <button
-                        id="menu-item-v1-trip"
-                        onClick={() => {
-                          setCurrentTab('editor');
-                          setIsMenuOpen(false);
-                        }}
-                        className={`w-full flex items-start gap-3 p-3 rounded-xl text-left text-xs transition-all border ${
-                          currentTab === 'editor' 
-                            ? 'bg-amber-50/90 border-amber-300 text-amber-950 font-semibold shadow-2xs' 
-                            : 'bg-white hover:bg-slate-50 border-slate-100 hover:border-slate-200 text-slate-700'
-                        }`}
-                      >
-                        <div className="p-2 rounded-lg bg-amber-100 text-amber-800 shrink-0 mt-0.5 shadow-2xs">
-                          <FileText className="w-4 h-4" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between">
-                            <span className="font-bold text-slate-900 text-xs">V1 Trip Editor</span>
-                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 font-bold">Classic</span>
-                          </div>
-                          <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">Multi-section form for trip details, stays, and pricing customization.</p>
-                        </div>
-                      </button>
-
-                      {/* 2. Activity Catalog */}
-                      <button
+                        type="button"
                         id="menu-item-catalog"
                         onClick={() => {
                           setCurrentTab('catalog');
                           setIsMenuOpen(false);
                         }}
-                        className={`w-full flex items-start gap-3 p-3 rounded-xl text-left text-xs transition-all border ${
+                        className={`w-full flex items-start gap-3 p-3 rounded-xl text-left text-xs transition-all border cursor-pointer group ${
                           currentTab === 'catalog' 
-                            ? 'bg-indigo-50/90 border-indigo-300 text-indigo-950 font-semibold shadow-2xs' 
-                            : 'bg-white hover:bg-slate-50 border-slate-100 hover:border-slate-200 text-slate-700'
+                            ? 'bg-indigo-50 border-indigo-300 text-indigo-950 font-semibold shadow-xs ring-1 ring-indigo-400/20' 
+                            : 'bg-white hover:bg-indigo-50/50 border-slate-200/80 hover:border-indigo-200 text-slate-700 hover:shadow-2xs'
                         }`}
                       >
-                        <div className="p-2 rounded-lg bg-indigo-100 text-indigo-700 shrink-0 mt-0.5 shadow-2xs">
+                        <div className="p-2.5 rounded-xl bg-indigo-100/80 text-indigo-700 shrink-0 mt-0.5 shadow-2xs group-hover:scale-105 transition-transform">
                           <BookOpen className="w-4 h-4" />
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between">
-                            <span className="font-bold text-slate-900 text-xs">Destination Catalog</span>
+                            <span className="font-extrabold text-slate-900 text-xs group-hover:text-indigo-900 transition-colors">Destination Catalog</span>
                             <span className="text-[10px] px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 font-bold">Database</span>
                           </div>
                           <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">Manage destinations, sightseeing activity inventory, and default packages.</p>
                         </div>
                       </button>
 
-                      {/* 3. Import Planner Data */}
+                      {/* 2. Import Planner Data */}
                       <button
+                        type="button"
                         id="menu-item-import-planner"
                         onClick={() => {
                           onOpenImport();
                           setIsMenuOpen(false);
                         }}
-                        className="w-full flex items-start gap-3 p-3 rounded-xl text-left text-xs transition-all border border-slate-100 hover:border-emerald-200 bg-white hover:bg-emerald-50/50 text-slate-700"
+                        className="w-full flex items-start gap-3 p-3 rounded-xl text-left text-xs transition-all border border-slate-200/80 hover:border-emerald-300 bg-white hover:bg-emerald-50/60 text-slate-700 cursor-pointer shadow-2xs hover:shadow-xs group"
                       >
-                        <div className="p-2 rounded-lg bg-emerald-100 text-emerald-800 shrink-0 mt-0.5 shadow-2xs">
+                        <div className="p-2.5 rounded-xl bg-emerald-100/80 text-emerald-800 shrink-0 mt-0.5 shadow-2xs group-hover:scale-105 transition-transform">
                           <Upload className="w-4 h-4" />
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between">
-                            <span className="font-bold text-slate-900 text-xs">Import Planner Data</span>
+                            <span className="font-extrabold text-slate-900 text-xs group-hover:text-emerald-900 transition-colors">Import Planner Data</span>
                             <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold">Paste / File</span>
                           </div>
                           <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">Import booking details, customer inputs, or restore sample data.</p>
+                        </div>
+                      </button>
+
+                      {/* 3. Google Sheet Voucher Database */}
+                      <button
+                        type="button"
+                        id="menu-item-google-sheets"
+                        onClick={() => {
+                          onOpenGoogleSheets?.();
+                          setIsMenuOpen(false);
+                        }}
+                        className="w-full flex items-start gap-3 p-3 rounded-xl text-left text-xs transition-all border border-teal-200/80 hover:border-teal-300 bg-teal-50/40 hover:bg-teal-50/80 text-slate-700 cursor-pointer shadow-2xs hover:shadow-xs group"
+                      >
+                        <div className="p-2.5 rounded-xl bg-teal-600 text-white shrink-0 mt-0.5 shadow-2xs group-hover:scale-105 transition-transform">
+                          <Table className="w-4 h-4" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between">
+                            <span className="font-extrabold text-slate-900 text-xs group-hover:text-teal-950 transition-colors">Voucher Database</span>
+                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-teal-100 text-teal-800 font-bold border border-teal-200">Google Sheet</span>
+                          </div>
+                          <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">Sync voucher serial numbers & log generated itineraries in real time.</p>
                         </div>
                       </button>
 
@@ -272,17 +283,17 @@ export const Navbar: React.FC<NavbarProps> = ({
                         href="https://travelcaretours.in/invoice/"
                         target="_self"
                         title="Switch to Workspace Hub"
-                        className="w-full flex items-start gap-3 p-3 rounded-xl text-left text-xs transition-all border border-slate-700 bg-slate-900 text-slate-100 hover:bg-slate-800 shadow-xs cursor-pointer"
+                        className="w-full flex items-start gap-3 p-3 rounded-xl text-left text-xs transition-all border border-slate-700 bg-gradient-to-r from-slate-900 to-slate-800 text-slate-100 hover:from-slate-850 hover:to-slate-750 shadow-sm cursor-pointer group"
                       >
-                        <div className="p-2 rounded-lg bg-slate-800 text-blue-400 shrink-0 mt-0.5 shadow-2xs">
+                        <div className="p-2.5 rounded-xl bg-slate-800 text-blue-400 shrink-0 mt-0.5 shadow-2xs group-hover:scale-105 transition-transform border border-slate-700">
                           <LayoutGrid className="w-4 h-4" />
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between">
-                            <span className="font-bold text-white text-xs">Workspace Hub</span>
-                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-900/60 text-blue-300 font-bold border border-blue-700">Billing Portal</span>
+                            <span className="font-extrabold text-white text-xs">Workspace Hub</span>
+                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-900/80 text-blue-300 font-bold border border-blue-700">Billing Portal</span>
                           </div>
-                          <p className="text-[11px] text-slate-400 mt-0.5 leading-snug">Switch back to Travel Care Tours billing and operations portal.</p>
+                          <p className="text-[11px] text-slate-300 mt-0.5 leading-snug">Switch back to Travel Care Tours billing and operations portal.</p>
                         </div>
                       </a>
                     </div>
@@ -292,40 +303,32 @@ export const Navbar: React.FC<NavbarProps> = ({
             </div>
           </div>
 
-          {/* Action buttons */}
+          {/* Action buttons (Icon-Only Header Controls) */}
           <div className="flex items-center gap-2">
-            {/* Desktop Workspace Button */}
+            {/* Workspace Hub Button */}
             <a
               href="https://travelcaretours.in/invoice/"
               target="_self"
               title="Switch to Workspace Hub"
-              className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-slate-200 hover:text-white bg-slate-800 hover:bg-slate-750 border border-slate-700 transition-all shadow-xs"
+              aria-label="Switch to Workspace Hub"
+              className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-slate-900 hover:bg-slate-800 active:bg-slate-950 text-slate-200 hover:text-white border border-slate-700 transition-all shadow-2xs hover:shadow-xs flex items-center justify-center cursor-pointer active:scale-95 shrink-0 group"
             >
-              <LayoutGrid className="w-3.5 h-3.5 text-blue-400" />
-              <span>Workspace Hub</span>
+              <LayoutGrid className="w-5 h-5 text-blue-400 group-hover:scale-110 transition-transform" />
             </a>
 
-            {/* Mobile Workspace Icon Button */}
-            <a
-              href="https://travelcaretours.in/invoice/"
-              target="_self"
-              title="Workspace Hub"
-              className="sm:hidden p-2 rounded-xl bg-slate-800 text-slate-300 hover:text-white border border-slate-700 transition-all flex items-center justify-center"
-              aria-label="Workspace Hub"
-            >
-              <LayoutGrid className="w-4 h-4 text-blue-400" />
-            </a>
-
+            {/* Generate PDF Button */}
             <button
               id="btn-generate-pdf"
+              type="button"
               onClick={() => {
                 setCurrentTab('preview');
                 setTimeout(() => onPrint(), 250);
               }}
-              className="flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-4 py-1.5 sm:py-2 text-[11px] sm:text-xs font-bold text-white bg-gradient-to-r from-emerald-800 to-teal-800 hover:from-emerald-900 hover:to-teal-900 rounded-lg shadow-xs transition-all active:scale-[0.98]"
+              title="Generate & Print PDF Itinerary"
+              aria-label="Generate & Print PDF Itinerary"
+              className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-gradient-to-br from-emerald-800 to-teal-800 hover:from-emerald-900 hover:to-teal-900 text-white border border-emerald-700/60 transition-all shadow-2xs hover:shadow-xs flex items-center justify-center cursor-pointer active:scale-95 shrink-0 group"
             >
-              <Printer className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-200" />
-              <span>Generate PDF</span>
+              <Printer className="w-5 h-5 text-emerald-200 group-hover:scale-110 transition-transform" />
             </button>
           </div>
         </div>
@@ -368,9 +371,11 @@ export const Navbar: React.FC<NavbarProps> = ({
             </button>
           </div>
           <button
+            ref={mobileTriggerRef}
+            type="button"
             onClick={() => setIsMenuOpen(!isMenuOpen)}
             className={`min-h-[40px] w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border transition-all ${
-              isMenuOpen || currentTab === 'editor' || currentTab === 'catalog'
+              isMenuOpen || currentTab === 'catalog'
                 ? 'bg-slate-900 text-amber-400 border-slate-700 shadow-xs'
                 : 'bg-white hover:bg-slate-50 border-slate-200 text-slate-700 shadow-2xs'
             }`}
@@ -382,19 +387,23 @@ export const Navbar: React.FC<NavbarProps> = ({
         </div>
 
         {/* Mobile Menu Slide-Over / Bottom Sheet - rendered via Portal to escape header's backdrop-filter & sticky constraints */}
-        {mounted && isMenuOpen && createPortal(
+        {isMounted && isMenuOpen && createPortal(
           <div className="md:hidden fixed inset-0 z-50 flex flex-col justify-end bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
             <div 
               className="fixed inset-0"
               onClick={() => setIsMenuOpen(false)}
             />
-            <div className="relative bg-white rounded-t-2xl p-4 shadow-2xl border-t border-slate-200 space-y-3 z-10 max-h-[85vh] overflow-y-auto no-scrollbar">
+            <div 
+              ref={mobileSheetRef}
+              className="relative bg-white rounded-t-2xl p-4 shadow-2xl border-t border-slate-200 space-y-3 z-10 max-h-[85vh] overflow-y-auto no-scrollbar"
+            >
               <div className="flex items-center justify-between pb-2 border-b border-slate-100">
                 <div className="flex items-center gap-2">
                   <div className="w-2 h-5 rounded-full bg-emerald-700" />
                   <span className="font-extrabold text-sm text-slate-900">App Navigation & Tools</span>
                 </div>
                 <button
+                  type="button"
                   onClick={() => setIsMenuOpen(false)}
                   className="p-1.5 text-slate-400 hover:text-slate-700 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
                 >
@@ -403,32 +412,9 @@ export const Navbar: React.FC<NavbarProps> = ({
               </div>
 
               <div className="space-y-2 pt-1">
-                {/* 1. V1 Trip Page */}
+                {/* 1. Destination Catalog */}
                 <button
-                  onClick={() => {
-                    setCurrentTab('editor');
-                    setIsMenuOpen(false);
-                  }}
-                  className={`w-full flex items-start gap-3 p-3 rounded-xl border text-left transition-all cursor-pointer ${
-                    currentTab === 'editor'
-                      ? 'bg-amber-50/80 border-amber-300 text-amber-950 font-semibold'
-                      : 'border-slate-200 bg-white hover:bg-slate-50 text-slate-800'
-                  }`}
-                >
-                  <div className="p-2 rounded-lg bg-amber-100 text-amber-800 shrink-0 mt-0.5">
-                    <FileText className="w-5 h-5" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between">
-                      <span className="font-bold text-slate-900 text-sm">V1 Trip Editor</span>
-                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-200 text-amber-900 font-bold">Classic</span>
-                    </div>
-                    <p className="text-xs text-slate-500 mt-0.5">Classic detailed form for accommodation, inclusion checklists, driver, and routing.</p>
-                  </div>
-                </button>
-
-                {/* 2. Activity Catalog */}
-                <button
+                  type="button"
                   onClick={() => {
                     setCurrentTab('catalog');
                     setIsMenuOpen(false);
@@ -453,6 +439,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
                 {/* 3. Import Planner Data */}
                 <button
+                  type="button"
                   onClick={() => {
                     onOpenImport();
                     setIsMenuOpen(false);
@@ -468,6 +455,27 @@ export const Navbar: React.FC<NavbarProps> = ({
                       <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold">Paste / File</span>
                     </div>
                     <p className="text-xs text-slate-500 mt-0.5">Paste WhatsApp itinerary or raw text to auto-populate the trip.</p>
+                  </div>
+                </button>
+
+                {/* 3. Google Sheet Voucher Database */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    onOpenGoogleSheets?.();
+                    setIsMenuOpen(false);
+                  }}
+                  className="w-full flex items-start gap-3 p-3 rounded-xl border border-emerald-200 bg-emerald-50/40 hover:bg-emerald-50 text-left transition-all cursor-pointer"
+                >
+                  <div className="p-2 rounded-lg bg-emerald-600 text-white shrink-0 mt-0.5 shadow-2xs">
+                    <Table className="w-5 h-5" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-slate-900 text-sm">Voucher Database</span>
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold border border-emerald-200">Google Sheet</span>
+                    </div>
+                    <p className="text-xs text-slate-500 mt-0.5">Sync voucher numbers & view auto-logged booking rows in Google Sheets.</p>
                   </div>
                 </button>
 
