@@ -12,6 +12,16 @@ export const STORAGE_KEY_SHEET_URL = 'tct_google_sheet_webapp_url';
 export const STORAGE_KEY_LAST_VOUCHER = 'tct_serial_quote_number';
 export const STORAGE_KEY_CACHED_VOUCHER_CODE = 'tct_cached_voucher_code';
 
+/**
+ * Global default Google Apps Script Web App URL for Travel Care Tours.
+ * Setting your Web App URL here ensures that EVERY device, phone, and browser
+ * opening the GitHub Pages site or localhost is automatically connected out of the box.
+ * 
+ * Paste your deployed Web App URL below (e.g. 'https://script.google.com/macros/s/.../exec')
+ */
+export const DEFAULT_GOOGLE_SHEET_WEBAPP_URL = 
+  'https://script.google.com/macros/s/AKfycbzp8AN9F151NPWhf_mDyjHS7I6cuKqR5ZFFX4mmd0Z0EQpllEosGTXfIZoczI4ATSej/exec';
+
 export interface VoucherSyncResponse {
   success: boolean;
   lastVoucherNumber?: string;
@@ -37,8 +47,33 @@ export interface SaveVoucherPayload {
 }
 
 /**
- * Retrieve the configured Google Apps Script Web App URL.
- * Checks localStorage first, then environment variable.
+ * Returns the configured default sheet URL (from code or build env).
+ */
+export function getDefaultGoogleSheetWebAppUrl(): string {
+  return (
+    (typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_GOOGLE_SHEET_WEBAPP_URL) ||
+    DEFAULT_GOOGLE_SHEET_WEBAPP_URL ||
+    ''
+  ).trim();
+}
+
+/**
+ * Checks if the current browser session is using a custom local device override.
+ */
+export function isUsingCustomSheetUrl(): boolean {
+  if (typeof window !== 'undefined') {
+    const customUrl = localStorage.getItem(STORAGE_KEY_SHEET_URL);
+    return Boolean(customUrl && customUrl.trim());
+  }
+  return false;
+}
+
+/**
+ * Retrieve the active Google Apps Script Web App URL.
+ * Hierarchy:
+ * 1. Device override (localStorage)
+ * 2. Next.js env (process.env.NEXT_PUBLIC_GOOGLE_SHEET_WEBAPP_URL)
+ * 3. Global constant (DEFAULT_GOOGLE_SHEET_WEBAPP_URL)
  */
 export function getGoogleSheetWebAppUrl(): string {
   if (typeof window !== 'undefined') {
@@ -47,11 +82,11 @@ export function getGoogleSheetWebAppUrl(): string {
       return customUrl.trim();
     }
   }
-  return process.env.NEXT_PUBLIC_GOOGLE_SHEET_WEBAPP_URL || '';
+  return getDefaultGoogleSheetWebAppUrl();
 }
 
 /**
- * Save or update the Google Apps Script Web App URL in localStorage.
+ * Save or update the Google Apps Script Web App URL in localStorage (device override).
  */
 export function setGoogleSheetWebAppUrl(url: string): void {
   if (typeof window !== 'undefined') {
@@ -60,6 +95,15 @@ export function setGoogleSheetWebAppUrl(url: string): void {
     } else {
       localStorage.removeItem(STORAGE_KEY_SHEET_URL);
     }
+  }
+}
+
+/**
+ * Revert to default shared sheet by clearing the local device override.
+ */
+export function resetToDefaultSheetUrl(): void {
+  if (typeof window !== 'undefined') {
+    localStorage.removeItem(STORAGE_KEY_SHEET_URL);
   }
 }
 

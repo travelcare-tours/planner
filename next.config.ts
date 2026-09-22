@@ -9,6 +9,7 @@ const nextConfig: NextConfig = {
   assetPrefix: basePath ? `${basePath}/` : undefined,
   env: {
     NEXT_PUBLIC_BASE_PATH: basePath,
+    NEXT_PUBLIC_GOOGLE_SHEET_WEBAPP_URL: process.env.NEXT_PUBLIC_GOOGLE_SHEET_WEBAPP_URL || '',
   },
   reactStrictMode: true,
   typescript: {

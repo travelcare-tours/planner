@@ -17,7 +17,11 @@ import {
 import { 
   getGoogleSheetWebAppUrl, 
   setGoogleSheetWebAppUrl, 
-  fetchLastVoucherNumber 
+  fetchLastVoucherNumber,
+  isUsingCustomSheetUrl,
+  resetToDefaultSheetUrl,
+  getDefaultGoogleSheetWebAppUrl,
+  DEFAULT_GOOGLE_SHEET_WEBAPP_URL
 } from '@/lib/google-sheets-sync';
 
 interface GoogleSheetsModalProps {
@@ -121,6 +125,7 @@ export const GoogleSheetsModal: React.FC<GoogleSheetsModalProps> = ({
   onSyncComplete,
 }) => {
   const [url, setUrl] = useState(() => (typeof window !== 'undefined' ? getGoogleSheetWebAppUrl() : ''));
+  const [isCustomOverride, setIsCustomOverride] = useState(() => (typeof window !== 'undefined' ? isUsingCustomSheetUrl() : false));
   const [isTesting, setIsTesting] = useState(false);
   const [testResult, setTestResult] = useState<{
     success: boolean;
@@ -133,9 +138,29 @@ export const GoogleSheetsModal: React.FC<GoogleSheetsModalProps> = ({
 
   if (!isOpen) return null;
 
+  const defaultUrl = getDefaultGoogleSheetWebAppUrl();
+
   const handleSave = () => {
-    setGoogleSheetWebAppUrl(url.trim());
+    const trimmed = url.trim();
+    if (!trimmed || trimmed === defaultUrl) {
+      resetToDefaultSheetUrl();
+      setIsCustomOverride(false);
+      setUrl(defaultUrl);
+    } else {
+      setGoogleSheetWebAppUrl(trimmed);
+      setIsCustomOverride(true);
+    }
     setSavedSuccess(true);
+    setTimeout(() => setSavedSuccess(false), 2500);
+  };
+
+  const handleResetToDefault = () => {
+    resetToDefaultSheetUrl();
+    const fallback = getDefaultGoogleSheetWebAppUrl();
+    setUrl(fallback);
+    setIsCustomOverride(false);
+    setSavedSuccess(true);
+    setTestResult(null);
     setTimeout(() => setSavedSuccess(false), 2500);
   };
 
@@ -153,7 +178,11 @@ export const GoogleSheetsModal: React.FC<GoogleSheetsModalProps> = ({
         return;
       }
 
-      setGoogleSheetWebAppUrl(activeUrl);
+      // If user typed a custom URL, persist it
+      if (activeUrl !== defaultUrl) {
+        setGoogleSheetWebAppUrl(activeUrl);
+        setIsCustomOverride(true);
+      }
       const res = await fetchLastVoucherNumber();
 
       if (res.isRemote) {
@@ -224,18 +253,23 @@ export const GoogleSheetsModal: React.FC<GoogleSheetsModalProps> = ({
         <div className="p-4 sm:p-6 overflow-y-auto space-y-5 text-xs sm:text-sm">
           {/* Web App URL Input Card */}
           <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
-            <label className="block font-bold text-slate-800 text-xs sm:text-sm flex items-center justify-between">
+            <label className="block font-bold text-slate-800 text-xs sm:text-sm flex items-center justify-between flex-wrap gap-1.5">
               <span className="flex items-center gap-1.5">
                 <Link2 className="w-4 h-4 text-emerald-600" />
                 Google Apps Script Web App URL
               </span>
-              {url ? (
-                <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold">
-                  Configured
+              {isCustomOverride ? (
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-purple-100 text-purple-900 border border-purple-200 font-bold">
+                  Device Override (This browser only)
+                </span>
+              ) : url ? (
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300 font-bold flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                  Team Default (All Devices)
                 </span>
               ) : (
                 <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 font-bold">
-                  Using Local Storage
+                  Not Configured
                 </span>
               )}
             </label>
@@ -251,23 +285,36 @@ export const GoogleSheetsModal: React.FC<GoogleSheetsModalProps> = ({
               <button
                 type="button"
                 onClick={handleSave}
-                className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl text-xs transition-colors shrink-0 flex items-center gap-1.5"
+                className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl text-xs transition-colors shrink-0 flex items-center gap-1.5 cursor-pointer"
               >
                 {savedSuccess ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : null}
                 <span>{savedSuccess ? 'Saved!' : 'Save'}</span>
               </button>
             </div>
 
-            <div className="flex items-center justify-between pt-1">
-              <button
-                type="button"
-                onClick={handleTestConnection}
-                disabled={isTesting}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 font-bold text-xs rounded-lg border border-emerald-200 transition-colors disabled:opacity-50"
-              >
-                <RefreshCw className={`w-3.5 h-3.5 ${isTesting ? 'animate-spin' : ''}`} />
-                <span>{isTesting ? 'Testing Connection...' : 'Test Connection & Fetch Next #'}</span>
-              </button>
+            <div className="flex items-center justify-between pt-1 flex-wrap gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
+                <button
+                  type="button"
+                  onClick={handleTestConnection}
+                  disabled={isTesting}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 font-bold text-xs rounded-lg border border-emerald-200 transition-colors disabled:opacity-50 cursor-pointer"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${isTesting ? 'animate-spin' : ''}`} />
+                  <span>{isTesting ? 'Testing Connection...' : 'Test Connection & Fetch Next #'}</span>
+                </button>
+
+                {isCustomOverride && defaultUrl && (
+                  <button
+                    type="button"
+                    onClick={handleResetToDefault}
+                    className="px-2.5 py-1.5 text-xs text-emerald-700 hover:text-emerald-900 bg-emerald-50/70 hover:bg-emerald-100 border border-emerald-200 rounded-lg font-semibold transition-colors cursor-pointer"
+                    title="Revert back to the shared team sheet URL"
+                  >
+                    Reset to Team Default
+                  </button>
+                )}
+              </div>
 
               {url && (
                 <button
@@ -275,14 +322,21 @@ export const GoogleSheetsModal: React.FC<GoogleSheetsModalProps> = ({
                   onClick={() => {
                     setUrl('');
                     setGoogleSheetWebAppUrl('');
+                    setIsCustomOverride(false);
                     setSavedSuccess(true);
                   }}
-                  className="text-xs text-rose-600 hover:text-rose-800 font-semibold"
+                  className="text-xs text-rose-600 hover:text-rose-800 font-semibold cursor-pointer"
                 >
                   Clear URL
                 </button>
               )}
             </div>
+
+            {!isCustomOverride && url && (
+              <p className="text-[11px] text-emerald-700 font-medium">
+                ✓ Active across all devices, mobile phones, and GitHub Pages without requiring any setup.
+              </p>
+            )}
 
             {/* Test result message */}
             {testResult && (
