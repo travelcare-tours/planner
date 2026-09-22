@@ -343,7 +343,72 @@ export const INITIAL_DESTINATIONS_CATALOG: DestinationCatalogItem[] = [
   },
 ];
 
-export const SAMPLE_TRIP: TripDetails = {
+/**
+ * Format a Date object into standard readable format e.g. "22nd Sept 2026"
+ */
+export function formatTripDate(d: Date): string {
+  if (!d || isNaN(d.getTime())) return '';
+  const day = d.getDate();
+  const suffix = (day === 1 || day === 21 || day === 31) ? 'st' :
+                 (day === 2 || day === 22) ? 'nd' :
+                 (day === 3 || day === 23) ? 'rd' : 'th';
+  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sept', 'Oct', 'Nov', 'Dec'];
+  const month = monthNames[d.getMonth()];
+  const year = d.getFullYear();
+  return `${day}${suffix} ${month} ${year}`;
+}
+
+/**
+ * Returns today's date formatted in standard readable format e.g. "22nd Sept 2026".
+ */
+export function getTodayFormattedDate(): string {
+  return formatTripDate(new Date());
+}
+
+/**
+ * Add days to a Date.
+ */
+export function addDaysToTripDate(base: Date, days: number): Date {
+  const res = new Date(base.getTime());
+  res.setDate(res.getDate() + days);
+  return res;
+}
+
+/**
+ * Dynamically assigns consecutive dates to a trip starting from `baseDate` (defaults to today).
+ */
+export function applyDynamicTripDates(trip: TripDetails, baseDate: Date = new Date()): TripDetails {
+  const pickupDate = formatTripDate(baseDate);
+  let cumNights = 0;
+  const updatedAccs = (trip.accommodations || []).map((acc) => {
+    const checkIn = formatTripDate(addDaysToTripDate(baseDate, cumNights));
+    const nights = Math.max(1, Number(acc.nights) || 1);
+    cumNights += nights;
+    return {
+      ...acc,
+      checkInDate: checkIn,
+    };
+  });
+  const dropoffDate = formatTripDate(addDaysToTripDate(baseDate, cumNights));
+
+  const updatedDays = (trip.days || []).map((day, idx) => {
+    const dayDate = formatTripDate(addDaysToTripDate(baseDate, idx));
+    return {
+      ...day,
+      date: dayDate,
+    };
+  });
+
+  return {
+    ...trip,
+    pickupDate,
+    dropoffDate,
+    accommodations: updatedAccs,
+    days: updatedDays,
+  };
+}
+
+const RAW_SAMPLE_TRIP: TripDetails = {
   id: 'trip-tct-0195',
   voucherNumber: 'TCT-2026-KER-0195',
   tripTitle: 'KERALA SCENIC ESCAPE',
@@ -786,6 +851,11 @@ export const SAMPLE_TRIP: TripDetails = {
   createdAt: '2026-09-03T10:00:00.000Z',
   updatedAt: '2026-09-03T10:00:00.000Z',
 };
+
+/**
+ * Default sample trip with dynamically initialized dates starting from today.
+ */
+export const SAMPLE_TRIP: TripDetails = applyDynamicTripDates(RAW_SAMPLE_TRIP);
 
 export const DEFAULT_KERALA_DESTINATIONS = [
   'Munnar',

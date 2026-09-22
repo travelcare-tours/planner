@@ -29,10 +29,15 @@ import {
 import { 
   IntegrationDocsModal 
 } from '@/components/IntegrationDocsModal';
+import { parseDateSafe } from '@/components/DatePicker';
 import { 
   SAMPLE_TRIP, 
   INITIAL_DESTINATIONS_CATALOG,
-  COMPANY_DETAILS
+  COMPANY_DETAILS,
+  applyDynamicTripDates,
+  getTodayFormattedDate,
+  formatTripDate,
+  addDaysToTripDate
 } from '@/lib/sample-data';
 import { 
   TripDetails, 
@@ -70,7 +75,12 @@ export interface PlannerClientProps {
 export function PlannerClient({ initialTab = 'whatsapp-leads' }: PlannerClientProps) {
   const [currentTab, setCurrentTab] = useState<'whatsapp-leads' | 'editor' | 'activities' | 'catalog' | 'preview' | 'docs'>(initialTab);
   
-  const [trip, setTrip] = useState<TripDetails>(SAMPLE_TRIP);
+  const [trip, setTrip] = useState<TripDetails>(() => {
+    if (typeof window !== 'undefined') {
+      return applyDynamicTripDates(SAMPLE_TRIP, new Date());
+    }
+    return SAMPLE_TRIP;
+  });
   const [catalog, setCatalog] = useState<DestinationCatalogItem[]>(INITIAL_DESTINATIONS_CATALOG);
   
   // Staff Auth State
@@ -140,13 +150,20 @@ export function PlannerClient({ initialTab = 'whatsapp-leads' }: PlannerClientPr
       try {
         const savedTrip = localStorage.getItem('tct_planner_current_trip');
         if (savedTrip) {
-          const parsed = JSON.parse(savedTrip);
+          let parsed = JSON.parse(savedTrip);
           if (parsed.guestName === 'Mr. Nikhil Sharma' || !parsed.guestName) {
             parsed.guestName = 'Valued Guest';
           }
           if (parsed.guestContact === '+91 94957 01672') {
             parsed.guestContact = '';
           }
+
+          // Dynamic Pickup Date Migration:
+          // If pickupDate is not set or is the old template date "19th Sept 2026", default to today's date dynamically
+          if (!parsed.pickupDate || parsed.pickupDate === '19th Sept 2026') {
+            parsed = applyDynamicTripDates(parsed, new Date());
+          }
+
           // If previous accommodations had default MAPAI, update to default CP
           if (Array.isArray(parsed.accommodations)) {
             parsed.accommodations = parsed.accommodations.map((a: any) => {
@@ -187,7 +204,9 @@ export function PlannerClient({ initialTab = 'whatsapp-leads' }: PlannerClientPr
             });
             if (kovalamIndices.length > 1 && (parsed.durationNights === 6 || parsed.accommodations.length >= 5)) {
               parsed.accommodations = parsed.accommodations.filter((_: any, idx: number) => idx !== kovalamIndices[1]);
-              parsed.dropoffDate = '24th Sept 2026';
+              const totNights = parsed.accommodations.reduce((sum: number, a: any) => sum + (Number(a.nights) || 1), 0);
+              const baseDateObj = parseDateSafe(parsed.pickupDate) || new Date();
+              parsed.dropoffDate = formatTripDate(addDaysToTripDate(baseDateObj, totNights));
             }
 
             // 3. Keep days and nights accurately in sync
@@ -197,7 +216,7 @@ export function PlannerClient({ initialTab = 'whatsapp-leads' }: PlannerClientPr
             parsed.days = syncDaysWithAccommodationsAndPickup(
               parsed.days || [],
               parsed.accommodations,
-              parsed.pickupDate || '19th Sept 2026',
+              parsed.pickupDate || getTodayFormattedDate(),
               parsed.dropoffLocation || 'Thiruvananthapuram International Airport (TRV)'
             );
           }
@@ -206,6 +225,9 @@ export function PlannerClient({ initialTab = 'whatsapp-leads' }: PlannerClientPr
           try {
             localStorage.setItem('tct_planner_current_trip', JSON.stringify(parsed));
           } catch (err) {}
+        } else {
+          // Fresh session without saved trip: initialize with today's date dynamically
+          setTrip(applyDynamicTripDates(SAMPLE_TRIP, new Date()));
         }
       } catch (e) {}
 
@@ -271,7 +293,7 @@ export function PlannerClient({ initialTab = 'whatsapp-leads' }: PlannerClientPr
       const syncedDays = syncDaysWithAccommodationsAndPickup(
         baseTrip.days || [],
         baseTrip.accommodations || [],
-        baseTrip.pickupDate || '19th Sept 2026',
+        baseTrip.pickupDate || getTodayFormattedDate(),
         baseTrip.dropoffLocation || 'Thiruvananthapuram International Airport (TRV)'
       );
       const fullySyncedTrip: TripDetails = {
@@ -834,11 +856,11 @@ ${trip.days.map((d) => `*Day ${d.dayNumber} (${d.destination}):* ${d.activities.
                     type="button"
                     onClick={handleSaveToGoogleSheetFromPreview}
                     disabled={isSavingSheet}
-                    className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-emerald-950 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 rounded-xl transition-colors cursor-pointer shadow-2xs disabled:opacity-50"
+                    className="flex items-center gap-1.5 px-2.5 sm:px-3 py-2 text-xs font-bold text-emerald-950 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 rounded-xl transition-colors cursor-pointer shadow-2xs disabled:opacity-50"
                     title="Save final confirmed voucher to Google Sheet database"
                   >
-                    <Database className="w-3.5 h-3.5 text-emerald-700" />
-                    <span>{previewSaveStatus || 'Save to Sheet'}</span>
+                    <Database className={`w-3.5 h-3.5 text-emerald-700 ${isSavingSheet ? 'animate-pulse' : ''}`} />
+                    <span className="hidden sm:inline">{previewSaveStatus || 'Save to Sheet'}</span>
                   </button>
 
                   <button

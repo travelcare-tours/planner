@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { TripDetails, DayItinerary, DestinationCatalogItem } from '@/types/itinerary';
 import { generateItineraryFromInputs } from '@/lib/itinerary-generator';
+import { getTodayFormattedDate, formatTripDate, addDaysToTripDate } from '@/lib/sample-data';
 
 interface ImportPlannerModalProps {
   isOpen: boolean;
@@ -60,7 +61,7 @@ export const ImportPlannerModal: React.FC<ImportPlannerModalProps> = ({
           guestName: parsed.guest_name || 'Valued Guests',
           guestPhone: parsed.guest_phone || '+91 94477 82828',
           guestEmail: parsed.guest_email || 'travelcare598@gmail.com',
-          travelDate: parsed.travel_date || parsed.pickup_date || '19th Sept 2026',
+          travelDate: parsed.travel_date || parsed.pickup_date || getTodayFormattedDate(),
           nights: Number(parsed.nights) || 6,
           adults: Number(parsed.adults || parsed.pax_adults) || 2,
           children: Number(parsed.children || parsed.pax_children) || 0,
@@ -84,10 +85,10 @@ export const ImportPlannerModal: React.FC<ImportPlannerModalProps> = ({
         childrenAges: parsed.children_ages || '',
         durationDays: generated.durationDays || 7,
         durationNights: generated.durationNights || 6,
-        pickupDate: generated.pickupDate || '19th Sept 2026',
+        pickupDate: generated.pickupDate || getTodayFormattedDate(),
         pickupTime: '09:30 AM',
         pickupLocation: generated.pickupLocation || 'Cochin International Airport (COK)',
-        dropoffDate: generated.dropoffDate || '25th Sept 2026',
+        dropoffDate: generated.dropoffDate || formatTripDate(addDaysToTripDate(new Date(), 6)),
         dropoffTime: '05:00 PM',
         dropoffLocation: generated.dropoffLocation || 'Thiruvananthapuram International Airport (TRV)',
         routeSummary: generated.routeSummary || 'Cochin International Airport (COK) → Munnar → Thekkady → Alleppey → Kovalam → Kanyakumari → Thiruvananthapuram International Airport (TRV)',

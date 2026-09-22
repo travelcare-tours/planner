@@ -2113,33 +2113,33 @@ ${hotelLines}
               <div className="space-y-2">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                   {/* Total Hotel Cost Display */}
-                  <div className="p-2.5 sm:p-3 rounded-xl bg-slate-50 border border-slate-200/80 flex flex-col justify-between min-h-[68px]">
-                    <div className="flex items-center justify-between text-xs text-slate-600 font-bold mb-1">
-                      <span className="flex items-center gap-1.5">
-                        <Hotel className="w-3.5 h-3.5 text-emerald-700 shrink-0" />
-                        Hotel Net Cost
-                      </span>
-                      <span className="text-[10px] font-semibold text-slate-400">
+                  <div className="p-3.5 sm:p-4 rounded-xl bg-slate-50 border border-slate-200/90 flex items-center justify-between min-h-[84px] sm:min-h-[88px] transition-all hover:bg-slate-50">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-1.5 text-xs text-slate-700 font-bold">
+                        <Hotel className="w-4 h-4 text-emerald-700 shrink-0" />
+                        <span>Hotel Net Cost</span>
+                      </div>
+                      <div className="text-[11px] font-semibold text-slate-500 pl-5.5">
                         {trip.durationNights}N ({trip.accommodations.length} stops)
-                      </span>
+                      </div>
                     </div>
-                    <div className="font-black text-slate-900 text-sm sm:text-base">
+                    <div className="font-black text-slate-900 text-base sm:text-lg tracking-tight">
                       ₹ {totalHotelB2BCost.toLocaleString('en-IN')}
                     </div>
                   </div>
 
                   {/* Vehicle Charge */}
-                  <div className="p-2.5 sm:p-3 rounded-xl bg-slate-50 border border-slate-200/80 flex flex-col justify-between min-h-[68px]">
-                    <div className="flex items-center justify-between text-xs text-slate-700 font-bold mb-1">
-                      <label className="flex items-center gap-1.5 cursor-pointer">
-                        <Car className="w-3.5 h-3.5 text-[#0B2545] shrink-0" />
-                        Vehicle Charge:
+                  <div className="p-3.5 sm:p-4 rounded-xl bg-slate-50 border border-slate-200/90 flex items-center justify-between min-h-[84px] sm:min-h-[88px] transition-all hover:bg-slate-50">
+                    <div className="space-y-1">
+                      <label className="flex items-center gap-1.5 text-xs text-slate-700 font-bold cursor-pointer">
+                        <Car className="w-4 h-4 text-[#0B2545] shrink-0" />
+                        <span>Vehicle Charge:</span>
                       </label>
-                      <span className="text-[10px] text-slate-500 font-medium truncate max-w-[110px]" title={trip.vehicleType}>
+                      <div className="text-[11px] font-semibold text-slate-500 pl-5.5 truncate max-w-[130px]" title={trip.vehicleType}>
                         {trip.vehicleType}
-                      </span>
+                      </div>
                     </div>
-                    <div className="flex items-center justify-end gap-1.5">
+                    <div className="flex items-center gap-1.5">
                       <span className="font-bold text-slate-600 text-sm">₹</span>
                       <input
                         type="number"
@@ -2151,41 +2151,41 @@ ${hotelLines}
                           syncPricingToTrip(val, marginType, marginPercent, marginCustomAmount, adjustmentAmount);
                         }}
                         placeholder="12000"
-                        className="w-24 sm:w-28 h-8 sm:h-9 bg-white border border-slate-300 rounded-lg px-2 text-right font-black text-slate-900 text-xs sm:text-sm focus:ring-2 focus:ring-[#0B2545] focus:outline-hidden shadow-2xs"
+                        className="w-24 sm:w-28 h-9 sm:h-10 bg-white border border-slate-300 rounded-lg px-2.5 text-right font-black text-slate-900 text-sm focus:ring-2 focus:ring-[#0B2545] focus:outline-hidden shadow-2xs"
                       />
                     </div>
                   </div>
                 </div>
 
                 {/* Combined Base Cost Sub-strip */}
-                <div className="flex items-center justify-between px-3 py-1.5 rounded-lg bg-slate-100/70 text-[11px] sm:text-xs font-semibold text-slate-600 border border-slate-200/50">
+                <div className="flex items-center justify-between px-3.5 py-2.5 rounded-xl bg-slate-100/80 text-xs font-semibold text-slate-600 border border-slate-200/60 min-h-[42px]">
                   <span>Combined Base Cost (Hotel + Cab):</span>
-                  <span className="font-black text-slate-800">₹ {baseCost.toLocaleString('en-IN')}</span>
+                  <span className="font-black text-slate-800 text-xs sm:text-sm">₹ {baseCost.toLocaleString('en-IN')}</span>
                 </div>
               </div>
 
               {/* Row 2: Profit Margin & Adjustment side-by-side */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                 {/* Margin Selector Card */}
-                <div className="p-2.5 sm:p-3 rounded-xl bg-emerald-50/50 border border-emerald-200 flex flex-col justify-between space-y-2">
+                <div className="p-3.5 sm:p-4 rounded-xl bg-emerald-50/50 border border-emerald-200 flex flex-col justify-between min-h-[100px] sm:min-h-[108px] space-y-2.5">
                   <div className="flex items-center justify-between gap-1 flex-wrap">
-                    <div className="flex items-center gap-1.5 font-bold text-emerald-950 text-xs">
-                      <Percent className="w-3.5 h-3.5 text-emerald-700 shrink-0" />
+                    <div className="flex items-center gap-1.5 font-bold text-emerald-950 text-xs sm:text-sm">
+                      <Percent className="w-4 h-4 text-emerald-700 shrink-0" />
                       <span>Profit Margin:</span>
                     </div>
 
                     {/* Toggle: % vs Custom */}
-                    <div className="flex items-center bg-white p-0.5 rounded-lg border border-emerald-200 shadow-2xs">
+                    <div className="flex items-center bg-white p-1 rounded-lg border border-emerald-200 shadow-2xs">
                       <button
                         type="button"
                         onClick={() => {
                           setMarginType('percentage');
                           syncPricingToTrip(vehicleCost, 'percentage', marginPercent, marginCustomAmount, adjustmentAmount);
                         }}
-                        className={`px-2 py-0.5 rounded text-[11px] font-bold transition-all cursor-pointer ${
+                        className={`h-7 sm:h-7.5 px-3 rounded-md text-xs font-black transition-all cursor-pointer ${
                           marginType === 'percentage' 
                             ? 'bg-emerald-700 text-white shadow-xs' 
-                            : 'text-slate-600 hover:text-slate-900'
+                            : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
                         }`}
                       >
                         %
@@ -2196,10 +2196,10 @@ ${hotelLines}
                           setMarginType('custom');
                           syncPricingToTrip(vehicleCost, 'custom', marginPercent, marginCustomAmount, adjustmentAmount);
                         }}
-                        className={`px-2 py-0.5 rounded text-[11px] font-bold transition-all cursor-pointer ${
+                        className={`h-7 sm:h-7.5 px-3 rounded-md text-xs font-black transition-all cursor-pointer ${
                           marginType === 'custom' 
                             ? 'bg-emerald-700 text-white shadow-xs' 
-                            : 'text-slate-600 hover:text-slate-900'
+                            : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
                         }`}
                       >
                         ₹ Fixed
@@ -2209,9 +2209,9 @@ ${hotelLines}
 
                   {marginType === 'percentage' ? (
                     <div className="flex items-center justify-between gap-2 pt-0.5">
-                      <div className="text-[11px] text-emerald-900 font-bold leading-tight">
-                        <span className="text-[10px] text-emerald-700 block">Calculated Margin:</span>
-                        <span className="text-emerald-800 font-black text-xs">+ ₹ {marginAmount.toLocaleString('en-IN')}</span>
+                      <div className="text-xs text-emerald-900 font-bold leading-tight">
+                        <span className="text-[11px] text-emerald-700 block font-semibold">Calculated Margin:</span>
+                        <span className="text-emerald-900 font-black text-sm sm:text-base">+ ₹ {marginAmount.toLocaleString('en-IN')}</span>
                       </div>
                       <div className="flex items-center gap-1">
                         <input
@@ -2224,16 +2224,16 @@ ${hotelLines}
                             setMarginPercent(val);
                             syncPricingToTrip(vehicleCost, 'percentage', val, marginCustomAmount, adjustmentAmount);
                           }}
-                          className="w-14 sm:w-16 h-8 bg-white border border-slate-300 rounded-lg px-2 text-right font-black text-slate-900 text-xs focus:ring-2 focus:ring-emerald-600 focus:outline-hidden shadow-2xs"
+                          className="w-16 sm:w-18 h-9 sm:h-10 bg-white border border-slate-300 rounded-lg px-2.5 text-right font-black text-slate-900 text-sm focus:ring-2 focus:ring-emerald-600 focus:outline-hidden shadow-2xs"
                         />
-                        <span className="font-bold text-slate-700 text-xs">%</span>
+                        <span className="font-bold text-slate-700 text-sm">%</span>
                       </div>
                     </div>
                   ) : (
                     <div className="flex items-center justify-between gap-2 pt-0.5">
-                      <span className="text-[11px] text-slate-600 font-medium">Custom Fixed:</span>
+                      <span className="text-xs text-slate-600 font-bold">Custom Fixed:</span>
                       <div className="flex items-center gap-1">
-                        <span className="font-bold text-slate-700 text-xs">₹</span>
+                        <span className="font-bold text-slate-700 text-sm">₹</span>
                         <input
                           type="number"
                           step={500}
@@ -2243,7 +2243,7 @@ ${hotelLines}
                             setMarginCustomAmount(val);
                             syncPricingToTrip(vehicleCost, 'custom', marginPercent, val, adjustmentAmount);
                           }}
-                          className="w-20 sm:w-24 h-8 bg-white border border-slate-300 rounded-lg px-2 text-right font-black text-slate-900 text-xs focus:ring-2 focus:ring-emerald-600 focus:outline-hidden shadow-2xs"
+                          className="w-24 sm:w-28 h-9 sm:h-10 bg-white border border-slate-300 rounded-lg px-2.5 text-right font-black text-slate-900 text-sm focus:ring-2 focus:ring-emerald-600 focus:outline-hidden shadow-2xs"
                         />
                       </div>
                     </div>
@@ -2251,13 +2251,13 @@ ${hotelLines}
                 </div>
 
                 {/* Adjustment / Round-Off Card */}
-                <div className="p-2.5 sm:p-3 rounded-xl bg-slate-50 border border-slate-200/80 flex flex-col justify-between space-y-2">
+                <div className="p-3.5 sm:p-4 rounded-xl bg-slate-50 border border-slate-200/80 flex flex-col justify-between min-h-[100px] sm:min-h-[108px] space-y-2.5">
                   <div className="flex items-center justify-between gap-2">
-                    <label className="font-bold text-slate-800 text-xs block truncate">
+                    <label className="font-bold text-slate-800 text-xs sm:text-sm block truncate">
                       Adjustment / Round-Off:
                     </label>
                     <div className="flex items-center gap-1">
-                      <span className="font-bold text-slate-600 text-xs">₹</span>
+                      <span className="font-bold text-slate-600 text-sm">₹</span>
                       <input
                         type="number"
                         value={adjustmentAmount}
@@ -2267,14 +2267,14 @@ ${hotelLines}
                           syncPricingToTrip(vehicleCost, marginType, marginPercent, marginCustomAmount, val);
                         }}
                         placeholder="0"
-                        className="w-16 sm:w-20 h-8 bg-white border border-slate-300 rounded-lg px-2 text-right font-black text-slate-900 text-xs focus:ring-2 focus:ring-[#0B2545] focus:outline-hidden shadow-2xs"
+                        className="w-20 sm:w-24 h-9 sm:h-10 bg-white border border-slate-300 rounded-lg px-2.5 text-right font-black text-slate-900 text-sm focus:ring-2 focus:ring-[#0B2545] focus:outline-hidden shadow-2xs"
                       />
                     </div>
                   </div>
 
-                  {/* Quick round-off helpers */}
-                  <div className="flex items-center gap-1.5 justify-end text-xs">
-                    <span className="text-slate-400 text-[10px] font-semibold">Quick:</span>
+                  {/* Quick round-off helpers - ALIGNED LEFT */}
+                  <div className="flex items-center gap-2 justify-start flex-wrap text-xs">
+                    <span className="text-slate-500 text-xs font-bold">Quick:</span>
                     <button
                       type="button"
                       onClick={() => {
@@ -2284,7 +2284,7 @@ ${hotelLines}
                         setAdjustmentAmount(diff);
                         syncPricingToTrip(vehicleCost, marginType, marginPercent, marginCustomAmount, diff);
                       }}
-                      className="px-2 py-0.5 rounded-md bg-white border border-slate-300 text-slate-700 hover:bg-slate-100 font-bold text-[11px] shadow-2xs transition-colors cursor-pointer"
+                      className="h-7.5 sm:h-8 px-3 rounded-lg bg-white border border-slate-300 text-slate-700 hover:bg-slate-100 font-bold text-xs shadow-2xs transition-colors cursor-pointer"
                     >
                       ₹500
                     </button>
@@ -2297,7 +2297,7 @@ ${hotelLines}
                         setAdjustmentAmount(diff);
                         syncPricingToTrip(vehicleCost, marginType, marginPercent, marginCustomAmount, diff);
                       }}
-                      className="px-2 py-0.5 rounded-md bg-white border border-slate-300 text-slate-700 hover:bg-slate-100 font-bold text-[11px] shadow-2xs transition-colors cursor-pointer"
+                      className="h-7.5 sm:h-8 px-3 rounded-lg bg-white border border-slate-300 text-slate-700 hover:bg-slate-100 font-bold text-xs shadow-2xs transition-colors cursor-pointer"
                     >
                       ₹1,000
                     </button>
@@ -2307,7 +2307,7 @@ ${hotelLines}
                         setAdjustmentAmount(0);
                         syncPricingToTrip(vehicleCost, marginType, marginPercent, marginCustomAmount, 0);
                       }}
-                      className="px-2 py-0.5 rounded-md bg-white border border-slate-300 text-slate-500 hover:bg-slate-100 font-bold text-[11px] shadow-2xs transition-colors cursor-pointer"
+                      className="h-7.5 sm:h-8 px-3 rounded-lg bg-white border border-slate-300 text-slate-500 hover:bg-slate-100 font-bold text-xs shadow-2xs transition-colors cursor-pointer"
                     >
                       Reset
                     </button>
@@ -2316,96 +2316,96 @@ ${hotelLines}
               </div>
 
               {/* Row 3: Booking Advance Percentage Setter & Hotel Coverage */}
-              <div className="p-2.5 sm:p-3 rounded-xl bg-amber-50/70 border border-amber-200 space-y-2">
-                {/* Header row with preset pills and direct percentage input */}
-                <div className="flex items-center justify-between flex-wrap gap-1.5">
-                  <div className="flex items-center gap-1.5 font-bold text-amber-950 text-xs">
-                    <CreditCard className="w-3.5 h-3.5 text-amber-700 shrink-0" />
+              <div className="p-3.5 sm:p-5 rounded-xl bg-amber-50/70 border border-amber-200 space-y-3.5">
+                {/* Header row with Title and Manual input on right */}
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <div className="flex items-center gap-1.5 font-bold text-amber-950 text-xs sm:text-sm">
+                    <CreditCard className="w-4 h-4 text-amber-700 shrink-0" />
                     <span>Booking Advance:</span>
                   </div>
 
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    {/* Preset Buttons */}
-                    <div className="flex items-center gap-1">
-                      {[25, 30, 40, 50].map((pct) => (
-                        <button
-                          key={pct}
-                          type="button"
-                          onClick={() => {
-                            setAdvancePercentage(pct);
-                            syncPricingToTrip(vehicleCost, marginType, marginPercent, marginCustomAmount, adjustmentAmount, pct);
-                          }}
-                          className={`px-1.5 py-0.5 text-[11px] font-bold rounded-md border transition-all cursor-pointer ${
-                            advancePercentage === pct
-                              ? 'bg-amber-600 text-white border-amber-700 shadow-xs'
-                              : 'bg-white text-slate-700 border-amber-200 hover:bg-amber-100'
-                          }`}
-                        >
-                          {pct}%
-                        </button>
-                      ))}
-
-                      {/* Dynamic Hotel Cost button */}
-                      {finalTotalPackageCost > 0 && totalHotelB2BCost > 0 && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const exactHotelPct = Math.ceil((totalHotelB2BCost / finalTotalPackageCost) * 100);
-                            const roundedHotelPct = Math.min(95, Math.max(10, Math.ceil(exactHotelPct / 5) * 5));
-                            setAdvancePercentage(roundedHotelPct);
-                            syncPricingToTrip(vehicleCost, marginType, marginPercent, marginCustomAmount, adjustmentAmount, roundedHotelPct);
-                          }}
-                          className="px-1.5 py-0.5 text-[11px] font-extrabold rounded-md bg-emerald-700 hover:bg-emerald-800 text-white border border-emerald-800 transition-all cursor-pointer shadow-2xs"
-                          title={`Calculate exact % needed to cover Hotel B2B Net Cost (₹ ${totalHotelB2BCost.toLocaleString('en-IN')})`}
-                        >
-                          Hotel ({Math.ceil((totalHotelB2BCost / finalTotalPackageCost) * 100)}%)
-                        </button>
-                      )}
-                    </div>
-
-                    {/* Manual Input */}
-                    <div className="flex items-center gap-1 ml-1">
-                      <input
-                        type="number"
-                        min={10}
-                        max={95}
-                        step={5}
-                        value={advancePercentage}
-                        onChange={(e) => {
-                          const val = Math.max(5, Math.min(95, Number(e.target.value) || 40));
-                          setAdvancePercentage(val);
-                          syncPricingToTrip(vehicleCost, marginType, marginPercent, marginCustomAmount, adjustmentAmount, val);
-                        }}
-                        className="w-14 h-7 bg-white border border-amber-300 rounded-md px-1.5 text-right font-black text-amber-950 text-xs focus:ring-2 focus:ring-amber-600 focus:outline-hidden shadow-2xs"
-                      />
-                      <span className="font-bold text-amber-800 text-xs">%</span>
-                    </div>
+                  {/* Manual Input on right */}
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs font-semibold text-amber-900">Custom:</span>
+                    <input
+                      type="number"
+                      min={10}
+                      max={95}
+                      step={5}
+                      value={advancePercentage}
+                      onChange={(e) => {
+                        const val = Math.max(5, Math.min(95, Number(e.target.value) || 40));
+                        setAdvancePercentage(val);
+                        syncPricingToTrip(vehicleCost, marginType, marginPercent, marginCustomAmount, adjustmentAmount, val);
+                      }}
+                      className="w-16 h-8 sm:h-8.5 bg-white border border-amber-300 rounded-lg px-2 text-right font-black text-amber-950 text-xs sm:text-sm focus:ring-2 focus:ring-amber-600 focus:outline-hidden shadow-2xs"
+                    />
+                    <span className="font-bold text-amber-800 text-xs sm:text-sm">%</span>
                   </div>
                 </div>
 
+                {/* Preset Buttons - CENTER ALIGNED & TALLER */}
+                <div className="flex items-center justify-center gap-2 sm:gap-2.5 flex-wrap pt-0.5">
+                  {[25, 30, 40, 50].map((pct) => (
+                    <button
+                      key={pct}
+                      type="button"
+                      onClick={() => {
+                        setAdvancePercentage(pct);
+                        syncPricingToTrip(vehicleCost, marginType, marginPercent, marginCustomAmount, adjustmentAmount, pct);
+                      }}
+                      className={`h-8.5 sm:h-9 px-3.5 sm:px-4 text-xs sm:text-sm font-extrabold rounded-lg border transition-all cursor-pointer shadow-2xs ${
+                        advancePercentage === pct
+                          ? 'bg-amber-600 text-white border-amber-700 shadow-xs ring-2 ring-amber-400/40'
+                          : 'bg-white text-slate-700 border-amber-200/90 hover:bg-amber-100 hover:border-amber-300'
+                      }`}
+                    >
+                      {pct}%
+                    </button>
+                  ))}
+
+                  {/* Dynamic Hotel Cost button */}
+                  {finalTotalPackageCost > 0 && totalHotelB2BCost > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const exactHotelPct = Math.ceil((totalHotelB2BCost / finalTotalPackageCost) * 100);
+                        const roundedHotelPct = Math.min(95, Math.max(10, Math.ceil(exactHotelPct / 5) * 5));
+                        setAdvancePercentage(roundedHotelPct);
+                        syncPricingToTrip(vehicleCost, marginType, marginPercent, marginCustomAmount, adjustmentAmount, roundedHotelPct);
+                      }}
+                      className="h-8.5 sm:h-9 px-3.5 sm:px-4 text-xs sm:text-sm font-extrabold rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white border border-emerald-800 transition-all cursor-pointer shadow-2xs flex items-center gap-1.5"
+                      title={`Calculate exact % needed to cover Hotel B2B Net Cost (₹ ${totalHotelB2BCost.toLocaleString('en-IN')})`}
+                    >
+                      <Hotel className="w-3.5 h-3.5" />
+                      <span>Hotel ({Math.ceil((totalHotelB2BCost / finalTotalPackageCost) * 100)}%)</span>
+                    </button>
+                  )}
+                </div>
+
                 {/* Live Cross-Check Summary */}
-                <div className="pt-1.5 border-t border-amber-200/80 grid grid-cols-2 gap-2 text-xs">
-                  <div className="bg-white/90 p-2 rounded-lg border border-amber-200 flex flex-col justify-between">
-                    <span className="text-[10px] text-slate-500 block">Advance Payable ({advancePercentage}%):</span>
-                    <span className="font-black text-amber-950 text-xs sm:text-sm">₹ {calculatedAdvanceAmount.toLocaleString('en-IN')}/-</span>
+                <div className="pt-2 border-t border-amber-200/80 grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
+                  <div className="bg-white/95 p-3 rounded-xl border border-amber-200/90 flex flex-col justify-between min-h-[62px] shadow-2xs">
+                    <span className="text-[11px] text-slate-500 font-semibold block">Advance Payable ({advancePercentage}%):</span>
+                    <span className="font-black text-amber-950 text-sm sm:text-base">₹ {calculatedAdvanceAmount.toLocaleString('en-IN')}/-</span>
                   </div>
-                  <div className="bg-white/90 p-2 rounded-lg border border-amber-200 flex flex-col justify-between">
-                    <span className="text-[10px] text-slate-500 block">Balance on Arrival ({100 - advancePercentage}%):</span>
-                    <span className="font-black text-slate-800 text-xs sm:text-sm">₹ {calculatedBalanceAmount.toLocaleString('en-IN')}/-</span>
+                  <div className="bg-white/95 p-3 rounded-xl border border-amber-200/90 flex flex-col justify-between min-h-[62px] shadow-2xs">
+                    <span className="text-[11px] text-slate-500 font-semibold block">Balance on Arrival ({100 - advancePercentage}%):</span>
+                    <span className="font-black text-slate-800 text-sm sm:text-base">₹ {calculatedBalanceAmount.toLocaleString('en-IN')}/-</span>
                   </div>
                 </div>
 
                 {/* Comparison with Hotel Booking Net Cost */}
-                <div className="flex items-center justify-between text-[11px] pt-0.5">
+                <div className="flex items-center justify-between text-xs pt-1 flex-wrap gap-2">
                   <span className="text-slate-600 font-medium">
                     Hotel Net: <strong className="text-slate-900">₹ {totalHotelB2BCost.toLocaleString('en-IN')}</strong>
                   </span>
                   {calculatedAdvanceAmount >= totalHotelB2BCost ? (
-                    <span className="text-emerald-800 font-bold bg-emerald-100 px-2 py-0.5 rounded-md text-[10px]">
+                    <span className="text-emerald-800 font-bold bg-emerald-100 border border-emerald-200 px-2.5 py-1 rounded-md text-[11px]">
                       ✓ Covers Hotel (Buffer: ₹ {(calculatedAdvanceAmount - totalHotelB2BCost).toLocaleString('en-IN')})
                     </span>
                   ) : (
-                    <span className="text-amber-900 font-bold bg-amber-200/90 px-2 py-0.5 rounded-md text-[10px]">
+                    <span className="text-amber-900 font-bold bg-amber-200/90 border border-amber-300 px-2.5 py-1 rounded-md text-[11px]">
                       ⚠️ ₹ {(totalHotelB2BCost - calculatedAdvanceAmount).toLocaleString('en-IN')} short of Hotel Cost
                     </span>
                   )}
@@ -2436,20 +2436,6 @@ ${hotelLines}
               </div>
               <div className="text-2xl sm:text-3xl lg:text-4xl font-black text-white tracking-tight">
                 ₹ {finalTotalPackageCost.toLocaleString('en-IN')}/-
-              </div>
-              <div className="flex items-center flex-wrap gap-1.5 pt-1">
-                <span className="inline-flex items-center gap-1 bg-white/10 px-2 py-0.5 rounded text-[10px] text-emerald-300 font-semibold border border-white/10">
-                  ✓ Hotels
-                </span>
-                <span className="inline-flex items-center gap-1 bg-white/10 px-2 py-0.5 rounded text-[10px] text-emerald-300 font-semibold border border-white/10">
-                  ✓ AC Fleet
-                </span>
-                <span className="inline-flex items-center gap-1 bg-white/10 px-2 py-0.5 rounded text-[10px] text-emerald-300 font-semibold border border-white/10">
-                  ✓ Driver Bata
-                </span>
-                <span className="inline-flex items-center gap-1 bg-white/10 px-2 py-0.5 rounded text-[10px] text-emerald-300 font-semibold border border-white/10">
-                  ✓ Tolls & Taxes
-                </span>
               </div>
             </div>
 

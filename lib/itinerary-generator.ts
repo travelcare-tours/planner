@@ -1,4 +1,5 @@
 import { DayItinerary, TripDetails, DestinationCatalogItem } from '@/types/itinerary';
+import { getTodayFormattedDate, formatTripDate, addDaysToTripDate } from '@/lib/sample-data';
 
 export interface TripPlannerInputs {
   guestName?: string;
@@ -34,8 +35,8 @@ export function generateItineraryFromInputs(
   const totalDays = totalNights + 1;
 
   // Format dates
-  let startFormatted = inputs.travelDate || '19th Sept 2026';
-  let endFormatted = '25th Sept 2026';
+  let startFormatted = inputs.travelDate || getTodayFormattedDate();
+  let endFormatted = formatTripDate(addDaysToTripDate(new Date(), totalNights));
   try {
     if (inputs.travelDate && inputs.travelDate.includes('-')) {
       const parts = inputs.travelDate.split('-');
