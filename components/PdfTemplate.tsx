@@ -24,33 +24,39 @@ import QRCode from 'qrcode';
 import { TripDetails } from '@/types/itinerary';
 import { COMPANY_DETAILS } from '@/lib/sample-data';
 import { TC_LOGO_BASE64 } from '@/lib/logo';
+import { 
+  UPI_LOGO_BASE64, 
+  GPAY_LOGO_BASE64, 
+  PHONEPE_LOGO_BASE64, 
+  PAYTM_LOGO_BASE64 
+} from '@/lib/payment-logos';
 
 interface PdfTemplateProps {
   trip: TripDetails;
 }
 
-// Official UPI App Logos from /public
+// Official UPI App Logos (embedded base64 data URIs - zero external dependency)
 const UpiLogoBadge = () => (
   <span className="inline-flex items-center justify-center px-2 py-1 bg-white rounded-md shadow-2xs border border-slate-200/90 h-7" title="UPI">
-    <img src="/upi-ar21.svg" alt="UPI" className="h-4 w-auto object-contain max-h-5" />
+    <img src={UPI_LOGO_BASE64} alt="UPI" className="h-4 w-auto object-contain max-h-5" />
   </span>
 );
 
 const GPayLogoBadge = () => (
   <span className="inline-flex items-center justify-center px-2 py-1 bg-white rounded-md shadow-2xs border border-slate-200/90 h-7" title="Google Pay">
-    <img src="/google-pay-icon.svg" alt="Google Pay" className="h-4.5 w-auto object-contain max-h-5" />
+    <img src={GPAY_LOGO_BASE64} alt="Google Pay" className="h-4.5 w-auto object-contain max-h-5" />
   </span>
 );
 
 const PhonePeLogoBadge = () => (
   <span className="inline-flex items-center justify-center px-2 py-1 bg-white rounded-md shadow-2xs border border-slate-200/90 h-7" title="PhonePe">
-    <img src="/phonepe-icon.svg" alt="PhonePe" className="h-4.5 w-auto object-contain max-h-5" />
+    <img src={PHONEPE_LOGO_BASE64} alt="PhonePe" className="h-4.5 w-auto object-contain max-h-5" />
   </span>
 );
 
 const PaytmLogoBadge = () => (
   <span className="inline-flex items-center justify-center px-2 py-1 bg-white rounded-md shadow-2xs border border-slate-200/90 h-7" title="Paytm">
-    <img src="/paytm-icon.svg" alt="Paytm" className="h-3.5 w-auto object-contain max-h-5" />
+    <img src={PAYTM_LOGO_BASE64} alt="Paytm" className="h-3.5 w-auto object-contain max-h-5" />
   </span>
 );
 
