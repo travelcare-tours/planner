@@ -1,7 +1,8 @@
 import type {NextConfig} from 'next';
 
 
-const basePath = '/planner_antigravity';
+const isGitHubActions = process.env.GITHUB_ACTIONS === 'true';
+const basePath = isGitHubActions ? '/planner_antigravity' : '';
 
 const nextConfig: NextConfig = {
   basePath: basePath || undefined,
