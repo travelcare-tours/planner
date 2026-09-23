@@ -18,6 +18,9 @@ import {
   DestinationCatalogManager 
 } from '@/components/DestinationCatalogManager';
 import { 
+  HotelRoomCatalogManager 
+} from '@/components/HotelRoomCatalogManager';
+import { 
   PdfTemplate 
 } from '@/components/PdfTemplate';
 import { 
@@ -33,6 +36,7 @@ import { parseDateSafe } from '@/components/DatePicker';
 import { 
   SAMPLE_TRIP, 
   INITIAL_DESTINATIONS_CATALOG,
+  INITIAL_HOTEL_CATALOG,
   COMPANY_DETAILS,
   applyDynamicTripDates,
   getTodayFormattedDate,
@@ -42,6 +46,7 @@ import {
 import { 
   TripDetails, 
   DestinationCatalogItem, 
+  HotelModel,
   StaffUser 
 } from '@/types/itinerary';
 import { 
@@ -61,7 +66,9 @@ import {
   Palmtree,
   ArrowRight,
   Database,
-  Table
+  Table,
+  MoveHorizontal,
+  MoveVertical
 } from 'lucide-react';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas-pro';
@@ -69,11 +76,11 @@ import { GoogleSheetsModal } from '@/components/GoogleSheetsModal';
 import { saveVoucherToGoogleSheet, fetchLastVoucherNumber } from '@/lib/google-sheets-sync';
 
 export interface PlannerClientProps {
-  initialTab?: 'whatsapp-leads' | 'editor' | 'activities' | 'catalog' | 'preview' | 'docs';
+  initialTab?: 'whatsapp-leads' | 'editor' | 'activities' | 'catalog' | 'hotels' | 'preview' | 'docs';
 }
 
 export function PlannerClient({ initialTab = 'whatsapp-leads' }: PlannerClientProps) {
-  const [currentTab, setCurrentTab] = useState<'whatsapp-leads' | 'editor' | 'activities' | 'catalog' | 'preview' | 'docs'>(initialTab);
+  const [currentTab, setCurrentTab] = useState<'whatsapp-leads' | 'editor' | 'activities' | 'catalog' | 'hotels' | 'preview' | 'docs'>(initialTab);
   
   const [trip, setTrip] = useState<TripDetails>(() => {
     if (typeof window !== 'undefined') {
@@ -82,6 +89,28 @@ export function PlannerClient({ initialTab = 'whatsapp-leads' }: PlannerClientPr
     return SAMPLE_TRIP;
   });
   const [catalog, setCatalog] = useState<DestinationCatalogItem[]>(INITIAL_DESTINATIONS_CATALOG);
+  const [hotelCatalog, setHotelCatalog] = useState<HotelModel[]>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const stored = localStorage.getItem('tct_hotel_catalog_v1');
+        if (stored) return JSON.parse(stored);
+      } catch (e) {
+        console.error('Failed to load hotel catalog from localStorage', e);
+      }
+    }
+    return INITIAL_HOTEL_CATALOG;
+  });
+
+  const handleUpdateHotelCatalog = (newCatalog: HotelModel[]) => {
+    setHotelCatalog(newCatalog);
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('tct_hotel_catalog_v1', JSON.stringify(newCatalog));
+      } catch (e) {
+        console.error('Failed to save hotel catalog to localStorage', e);
+      }
+    }
+  };
   
   // Staff Auth State
   const [staffUser, setStaffUser] = useState<StaffUser | null>({
@@ -668,7 +697,7 @@ ${trip.days.map((d) => `*Day ${d.dayNumber} (${d.destination}):* ${d.activities.
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col">
+    <div className={`min-h-screen ${currentTab === 'preview' || currentTab === 'catalog' ? 'bg-[#f0f2f5]' : 'bg-slate-50'} text-slate-900 flex flex-col`}>
       {/* Navigation */}
       <Navbar
         currentTab={currentTab}
@@ -695,6 +724,8 @@ ${trip.days.map((d) => `*Day ${d.dayNumber} (${d.destination}):* ${d.activities.
             onNavigateToV1Trip={() => setCurrentTab('editor')}
             onOpenGoogleSheets={() => setShowGoogleSheetsModal(true)}
             staffUser={staffUser}
+            hotelCatalog={hotelCatalog}
+            onUpdateHotelCatalog={handleUpdateHotelCatalog}
           />
         )}
 
@@ -726,6 +757,14 @@ ${trip.days.map((d) => `*Day ${d.dayNumber} (${d.destination}):* ${d.activities.
           <DestinationCatalogManager
             catalog={catalog}
             onUpdateCatalog={handleUpdateCatalog}
+          />
+        )}
+
+        {/* Hotel & Room Catalog Management View */}
+        {currentTab === 'hotels' && (
+          <HotelRoomCatalogManager
+            hotelCatalog={hotelCatalog}
+            onUpdateHotelCatalog={handleUpdateHotelCatalog}
           />
         )}
 
@@ -776,125 +815,275 @@ ${trip.days.map((d) => `*Day ${d.dayNumber} (${d.destination}):* ${d.activities.
             </div>
 
             {/* Top Toolbar: Logical Grouping (View Controls Left, Export Actions Right) */}
-            <div className="your-header-container pdf-preview-header pdf-template-header bg-white rounded-2xl border border-slate-200 p-3 sm:p-4 shadow-xs flex flex-wrap items-center justify-between gap-3 sm:gap-4 no-print md:sticky md:top-20 md:z-30 backdrop-blur-md bg-white/95">
-              {/* LEFT GROUP: View Controls ("how I see it") */}
-              <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
-                <div className="flex items-center gap-2 pr-1 sm:pr-2 border-r border-slate-200">
-                  <div className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-900 flex items-center justify-center shrink-0">
-                    <Eye className="w-4 h-4 text-emerald-800" />
+            <div className="your-header-container pdf-preview-header pdf-template-header bg-white rounded-2xl border border-slate-200 p-2.5 sm:p-3 md:p-3.5 shadow-xs no-print md:sticky md:top-20 md:z-30 backdrop-blur-md bg-white/95">
+              {/* DESKTOP & TABLET: Single-Row Split Layout */}
+              <div className="hidden md:flex items-center justify-between w-full gap-3 lg:gap-4">
+                {/* Left Side (View Controls): Fit Width, Fit Height, Zoom Controls, Refresh */}
+                <div className="flex items-center gap-1.5 lg:gap-2">
+                  {/* Fit Controls */}
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={handleFitWidth}
+                      className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-bold text-slate-700 hover:text-emerald-950 hover:bg-slate-100 rounded-lg transition-all cursor-pointer"
+                      title="Fit page to preview width"
+                    >
+                      <MoveHorizontal className="w-3.5 h-3.5 text-slate-600" />
+                      <span>Fit Width</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleFitHeight}
+                      className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-bold text-slate-700 hover:text-emerald-950 hover:bg-slate-100 rounded-lg transition-all cursor-pointer"
+                      title="Fit full A4 page to screen height"
+                    >
+                      <MoveVertical className="w-3.5 h-3.5 text-slate-600" />
+                      <span>Fit Height</span>
+                    </button>
                   </div>
-                  <span className="font-extrabold text-xs sm:text-sm text-slate-900 hidden md:inline">Preview</span>
+
+                  {/* Subtle 1px Divider */}
+                  <div className="h-5 w-px bg-slate-200 mx-1" aria-hidden="true" />
+
+                  {/* Zoom Controls (- 100% +) */}
+                  <div className="flex items-center gap-0.5">
+                    <button
+                      type="button"
+                      onClick={() => setPdfZoom((prev) => Math.max(30, prev - 10))}
+                      className="w-7 h-7 flex items-center justify-center text-slate-600 hover:text-slate-950 hover:bg-slate-100 rounded-lg transition-all cursor-pointer"
+                      title="Zoom Out (-10%)"
+                    >
+                      <ZoomOut className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPdfZoom(100)}
+                      className="px-2 py-0.5 font-mono text-xs text-slate-800 font-extrabold select-none min-w-[44px] text-center hover:bg-slate-100 rounded-md transition-colors cursor-pointer"
+                      title="Reset Zoom to 100%"
+                    >
+                      {pdfZoom}%
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPdfZoom((prev) => Math.min(180, prev + 10))}
+                      className="w-7 h-7 flex items-center justify-center text-slate-600 hover:text-slate-950 hover:bg-slate-100 rounded-lg transition-all cursor-pointer"
+                      title="Zoom In (+10%)"
+                    >
+                      <ZoomIn className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+
+                  {/* Subtle 1px Divider */}
+                  <div className="h-5 w-px bg-slate-200 mx-1" aria-hidden="true" />
+
+                  {/* Refresh Button */}
+                  <button
+                    id="btn-sync-pdf-data"
+                    type="button"
+                    onClick={handleSyncPdfData}
+                    disabled={isSyncingPdf}
+                    className="w-8 h-8 flex items-center justify-center text-slate-600 hover:text-emerald-800 hover:bg-slate-100 border border-transparent hover:border-slate-200 rounded-lg transition-all cursor-pointer shadow-2xs disabled:opacity-50"
+                    title="Sync & Refresh PDF Data"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${isSyncingPdf ? 'animate-spin text-emerald-700' : 'text-slate-600'}`} />
+                  </button>
                 </div>
 
-                {/* Modern Zoom Controls: Fit Width, Fit Height, -, %, + */}
-                <div className="flex items-center bg-slate-100 rounded-xl p-1 border border-slate-200 shadow-2xs gap-1">
+                {/* Right Side (Action Controls): Save, Print, Share, Download PDF */}
+                <div className="flex items-center gap-2 lg:gap-2.5">
+                  {/* Save to Sheet */}
+                  <button
+                    id="btn-preview-save-sheet"
+                    type="button"
+                    onClick={handleSaveToGoogleSheetFromPreview}
+                    disabled={isSavingSheet}
+                    className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-slate-700 hover:text-emerald-950 hover:bg-slate-50 border border-slate-300 rounded-xl transition-all cursor-pointer shadow-2xs disabled:opacity-50"
+                    title={previewSaveStatus ? `Sheet: ${previewSaveStatus}` : "Save confirmed voucher to Google Sheet database"}
+                  >
+                    <Database className={`w-4 h-4 text-emerald-700 ${isSavingSheet ? 'animate-pulse' : ''}`} />
+                    <span className="hidden xl:inline">{isSavingSheet ? 'Saving...' : 'Save to Sheet'}</span>
+                  </button>
+
+                  {/* Print Document */}
+                  <button
+                    id="btn-print-native-pdf"
+                    type="button"
+                    onClick={triggerNativePrint}
+                    className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-slate-700 hover:text-slate-950 hover:bg-slate-50 border border-slate-300 rounded-xl transition-all cursor-pointer shadow-2xs"
+                    title="Print Document or Save as PDF"
+                  >
+                    <Printer className="w-4 h-4 text-slate-700" />
+                    <span className="hidden xl:inline">Print</span>
+                  </button>
+
+                  {/* WhatsApp Share */}
+                  <button
+                    id="btn-preview-whatsapp"
+                    type="button"
+                    onClick={() => setShowWhatsAppModal(true)}
+                    className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-emerald-900 bg-emerald-50/80 hover:bg-emerald-100 border border-emerald-300 rounded-xl transition-colors cursor-pointer shadow-2xs"
+                    title="Share Itinerary on WhatsApp"
+                  >
+                    <Share2 className="w-3.5 h-3.5 text-emerald-700" />
+                    <span>WhatsApp</span>
+                  </button>
+
+                  {/* Primary Action: Download PDF */}
+                  <button
+                    id="btn-download-pdf-file"
+                    type="button"
+                    onClick={() => {
+                      downloadPdfFile().catch((err) => {
+                        console.error('PDF download failed:', err);
+                      });
+                    }}
+                    disabled={isExportingPdf}
+                    className="flex items-center gap-2 px-4 sm:px-5 py-2.5 text-xs font-black text-white bg-emerald-800 hover:bg-emerald-900 active:bg-emerald-950 border border-emerald-900 rounded-xl shadow-md transition-all hover:scale-[1.02] cursor-pointer"
+                    title="Download PDF Document"
+                  >
+                    {isExportingPdf ? (
+                      <RefreshCw className="w-4 h-4 text-emerald-200 animate-spin" />
+                    ) : (
+                      <Download className="w-4 h-4 text-white" />
+                    )}
+                    <span>{isExportingPdf ? 'Exporting...' : 'Download PDF'}</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* MOBILE: Dedicated Stacked Layout (2 Rows) */}
+              <div className="flex md:hidden flex-col gap-2.5 w-full">
+                {/* Top Row: Center-aligned icon buttons (Fit, Zoom, Refresh, Save) */}
+                <div className="flex items-center justify-center gap-1 sm:gap-1.5 overflow-x-auto no-scrollbar py-0.5 w-full">
+                  {/* Fit Width */}
                   <button
                     type="button"
                     onClick={handleFitWidth}
-                    className="px-2 sm:px-2.5 py-1 text-[11px] font-bold text-slate-700 hover:text-emerald-950 hover:bg-white rounded-lg transition-all border border-transparent hover:border-slate-200 shadow-2xs cursor-pointer"
-                    title="Fit page to preview width"
+                    className="w-8 h-8 flex items-center justify-center text-slate-700 hover:text-emerald-950 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg transition-all cursor-pointer shadow-2xs shrink-0"
+                    title="Fit Width"
                   >
-                    Fit Width
+                    <MoveHorizontal className="w-3.5 h-3.5 text-slate-600" />
                   </button>
+
+                  {/* Fit Height */}
                   <button
                     type="button"
                     onClick={handleFitHeight}
-                    className="px-2 sm:px-2.5 py-1 text-[11px] font-bold text-slate-700 hover:text-emerald-950 hover:bg-white rounded-lg transition-all border border-transparent hover:border-slate-200 shadow-2xs cursor-pointer"
-                    title="Fit full A4 page to screen height"
+                    className="w-8 h-8 flex items-center justify-center text-slate-700 hover:text-emerald-950 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg transition-all cursor-pointer shadow-2xs shrink-0"
+                    title="Fit Height"
                   >
-                    Fit Height
+                    <MoveVertical className="w-3.5 h-3.5 text-slate-600" />
                   </button>
-                  <div className="h-4 w-[1px] bg-slate-300 mx-0.5" />
+
+                  {/* 1px Divider */}
+                  <div className="h-4 w-px bg-slate-200 mx-0.5 shrink-0" aria-hidden="true" />
+
+                  {/* Zoom Controls (- 100% +) */}
+                  <div className="flex items-center gap-0.5 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setPdfZoom((prev) => Math.max(30, prev - 10))}
+                      className="w-7 h-7 flex items-center justify-center text-slate-600 hover:text-slate-950 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg transition-all cursor-pointer"
+                      title="Zoom Out"
+                    >
+                      <ZoomOut className="w-3 h-3" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPdfZoom(100)}
+                      className="px-1.5 py-0.5 font-mono text-[11px] text-slate-800 font-extrabold select-none min-w-[36px] text-center"
+                      title="Reset Zoom"
+                    >
+                      {pdfZoom}%
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPdfZoom((prev) => Math.min(180, prev + 10))}
+                      className="w-7 h-7 flex items-center justify-center text-slate-600 hover:text-slate-950 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg transition-all cursor-pointer"
+                      title="Zoom In"
+                    >
+                      <ZoomIn className="w-3 h-3" />
+                    </button>
+                  </div>
+
+                  {/* 1px Divider */}
+                  <div className="h-4 w-px bg-slate-200 mx-0.5 shrink-0" aria-hidden="true" />
+
+                  {/* Refresh Button */}
                   <button
+                    id="btn-sync-pdf-data-mobile"
                     type="button"
-                    onClick={() => setPdfZoom((prev) => Math.max(30, prev - 10))}
-                    className="p-1.5 text-slate-700 hover:text-slate-950 hover:bg-white rounded-lg transition-all cursor-pointer"
-                    title="Zoom Out (-10%)"
+                    onClick={handleSyncPdfData}
+                    disabled={isSyncingPdf}
+                    className="w-8 h-8 flex items-center justify-center text-slate-600 hover:text-emerald-800 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg transition-all cursor-pointer shadow-2xs shrink-0 disabled:opacity-50"
+                    title="Sync & Refresh PDF Data"
                   >
-                    <ZoomOut className="w-3.5 h-3.5" />
+                    <RefreshCw className={`w-3.5 h-3.5 ${isSyncingPdf ? 'animate-spin text-emerald-700' : 'text-slate-600'}`} />
                   </button>
-                  <span className="px-1.5 font-mono text-[11px] text-slate-800 font-extrabold select-none min-w-[36px] text-center">
-                    {pdfZoom}%
-                  </span>
+
+                  {/* 1px Divider */}
+                  <div className="h-4 w-px bg-slate-200 mx-0.5 shrink-0" aria-hidden="true" />
+
+                  {/* Save to Google Sheet */}
                   <button
+                    id="btn-preview-save-sheet-mobile"
                     type="button"
-                    onClick={() => setPdfZoom((prev) => Math.min(180, prev + 10))}
-                    className="p-1.5 text-slate-700 hover:text-slate-950 hover:bg-white rounded-lg transition-all cursor-pointer"
-                    title="Zoom In (+10%)"
+                    onClick={handleSaveToGoogleSheetFromPreview}
+                    disabled={isSavingSheet}
+                    className="w-8 h-8 flex items-center justify-center text-slate-700 hover:text-emerald-950 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg transition-all cursor-pointer shadow-2xs shrink-0 disabled:opacity-50"
+                    title={previewSaveStatus ? `Sheet: ${previewSaveStatus}` : "Save to Google Sheet"}
                   >
-                    <ZoomIn className="w-3.5 h-3.5" />
+                    <Database className={`w-3.5 h-3.5 text-emerald-700 ${isSavingSheet ? 'animate-pulse' : ''}`} />
                   </button>
                 </div>
 
-                <button
-                  id="btn-sync-pdf-data"
-                  type="button"
-                  onClick={handleSyncPdfData}
-                  disabled={isSyncingPdf}
-                  className="p-2 text-slate-600 hover:text-emerald-800 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl transition-all cursor-pointer shadow-2xs"
-                  title="Sync & Refresh PDF Data"
-                >
-                  <RefreshCw className={`w-3.5 h-3.5 ${isSyncingPdf ? 'animate-spin text-emerald-700' : 'text-slate-600'}`} />
-                </button>
-              </div>
+                {/* Bottom Row: Remaining Action Buttons (Print, WhatsApp Share, Download PDF) */}
+                <div className="flex items-center gap-2 pt-1 border-t border-slate-100 w-full">
+                  {/* Print */}
+                  <button
+                    id="btn-print-native-pdf-mobile"
+                    type="button"
+                    onClick={triggerNativePrint}
+                    className="h-9 px-3 flex items-center justify-center gap-1.5 text-xs font-bold text-slate-700 bg-white hover:bg-slate-50 border border-slate-300 rounded-xl transition-all cursor-pointer shadow-2xs shrink-0"
+                    title="Print Document"
+                  >
+                    <Printer className="w-3.5 h-3.5 text-slate-700" />
+                    <span>Print</span>
+                  </button>
 
-              {/* RIGHT GROUP: Export & Action Controls ("what I do with it") */}
-              <div className="flex items-center gap-2 sm:gap-2.5 ml-auto">
-                {/* Secondary Action: Save to Sheet (Outlined / lighter button without text) */}
-                <button
-                  id="btn-preview-save-sheet"
-                  type="button"
-                  onClick={handleSaveToGoogleSheetFromPreview}
-                  disabled={isSavingSheet}
-                  className="p-2 sm:p-2.5 text-slate-600 hover:text-emerald-900 bg-white hover:bg-slate-50 border border-slate-300 rounded-xl transition-all cursor-pointer shadow-2xs disabled:opacity-50"
-                  title={previewSaveStatus ? `Sheet: ${previewSaveStatus}` : "Save confirmed voucher to Google Sheet database"}
-                >
-                  <Database className={`w-4 h-4 text-emerald-700 ${isSavingSheet ? 'animate-pulse' : ''}`} />
-                </button>
+                  {/* WhatsApp Share */}
+                  <button
+                    id="btn-preview-whatsapp-mobile"
+                    type="button"
+                    onClick={() => setShowWhatsAppModal(true)}
+                    className="h-9 px-3 flex items-center justify-center gap-1.5 text-xs font-bold text-emerald-900 bg-emerald-50/80 hover:bg-emerald-100 border border-emerald-300 rounded-xl transition-colors cursor-pointer shadow-2xs shrink-0"
+                    title="Share on WhatsApp"
+                  >
+                    <Share2 className="w-3.5 h-3.5 text-emerald-700" />
+                    <span>WhatsApp</span>
+                  </button>
 
-                {/* Secondary Action: Print (Outlined / lighter button without text) */}
-                <button
-                  id="btn-print-native-pdf"
-                  type="button"
-                  onClick={triggerNativePrint}
-                  className="p-2 sm:p-2.5 text-slate-600 hover:text-slate-900 bg-white hover:bg-slate-50 border border-slate-300 rounded-xl transition-all cursor-pointer shadow-2xs"
-                  title="Print Document or Save as PDF"
-                >
-                  <Printer className="w-4 h-4 text-slate-700" />
-                </button>
-
-                {/* Secondary Action: WhatsApp (Outlined emerald button) */}
-                <button
-                  id="btn-preview-whatsapp"
-                  type="button"
-                  onClick={() => setShowWhatsAppModal(true)}
-                  className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-emerald-900 bg-emerald-50/70 hover:bg-emerald-100 border border-emerald-300 rounded-xl transition-colors cursor-pointer shadow-2xs"
-                  title="Share Itinerary on WhatsApp"
-                >
-                  <Share2 className="w-3.5 h-3.5 text-emerald-700" />
-                  <span className="hidden sm:inline">WhatsApp</span>
-                </button>
-
-                {/* PRIMARY ACTION: Download PDF (Solid, bold brand-color button) */}
-                <button
-                  id="btn-download-pdf-file"
-                  type="button"
-                  onClick={() => {
-                    downloadPdfFile().catch((err) => {
-                      console.error('PDF download failed:', err);
-                    });
-                  }}
-                  disabled={isExportingPdf}
-                  className="flex items-center gap-2 px-4 sm:px-5 py-2.5 text-xs font-black text-white bg-emerald-800 hover:bg-emerald-900 active:bg-emerald-950 border border-emerald-900 rounded-xl shadow-md transition-all hover:scale-[1.02] cursor-pointer"
-                  title="Download PDF Document"
-                >
-                  {isExportingPdf ? (
-                    <RefreshCw className="w-4 h-4 text-emerald-200 animate-spin" />
-                  ) : (
-                    <Download className="w-4 h-4 text-white" />
-                  )}
-                  <span>{isExportingPdf ? 'Exporting...' : 'Download PDF'}</span>
-                </button>
+                  {/* Primary Action: Download PDF */}
+                  <button
+                    id="btn-download-pdf-file-mobile"
+                    type="button"
+                    onClick={() => {
+                      downloadPdfFile().catch((err) => {
+                        console.error('PDF download failed:', err);
+                      });
+                    }}
+                    disabled={isExportingPdf}
+                    className="h-9 flex-1 flex items-center justify-center gap-2 px-3 text-xs font-black text-white bg-emerald-800 hover:bg-emerald-900 active:bg-emerald-950 border border-emerald-900 rounded-xl shadow-md transition-all cursor-pointer truncate"
+                    title="Download PDF Document"
+                  >
+                    {isExportingPdf ? (
+                      <RefreshCw className="w-3.5 h-3.5 text-emerald-200 animate-spin shrink-0" />
+                    ) : (
+                      <Download className="w-3.5 h-3.5 text-white shrink-0" />
+                    )}
+                    <span className="truncate">{isExportingPdf ? 'Exporting...' : 'Download PDF'}</span>
+                  </button>
+                </div>
               </div>
             </div>
 

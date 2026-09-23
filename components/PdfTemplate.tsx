@@ -85,9 +85,6 @@ const PageFooter: React.FC<{ currentPage: number; totalPages: number; voucherNum
     <div className="font-semibold text-slate-700">
       Page {currentPage} of {totalPages}
     </div>
-    <div>
-      Ph: +91 91435 43444 • travelcare598@gmail.com
-    </div>
   </div>
 );
 
@@ -527,22 +524,37 @@ export const PdfTemplate: React.FC<PdfTemplateProps> = ({ trip }) => {
                         {selectedActs.length === 0 ? (
                           <p className="text-[10.5px] text-slate-400 italic">Day reserved at leisure / scenic road travel relaxation.</p>
                         ) : (
-                          <div className="grid grid-cols-1 gap-1.5">
-                            {selectedActs.slice(0, 4).map((act) => (
-                              <div key={act.id} className="bg-slate-50/70 border border-slate-200/80 rounded-lg px-2.5 py-1.5 shadow-2xs flex items-start gap-2">
-                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
-                                <div className="flex-1 min-w-0">
-                                  <div className="font-bold text-[11px] text-slate-900 leading-tight">
-                                    {act.title}
+                          <div className="relative pl-3.5 py-0.5">
+                            {/* Continuous vertical timeline line connecting all stops */}
+                            {selectedActs.slice(0, 4).length > 1 && (
+                              <div 
+                                className="absolute left-[4px] top-2 bottom-2 w-0.5 bg-teal-600/30 rounded-full" 
+                                aria-hidden="true" 
+                              />
+                            )}
+
+                            <div className="space-y-1.5">
+                              {selectedActs.slice(0, 4).map((act) => (
+                                <div key={act.id} className="relative flex items-start gap-2.5">
+                                  {/* Small, solid teal dot (node) for each stop */}
+                                  <div className="relative z-10 flex items-center justify-center shrink-0 mt-1 -ml-3.5">
+                                    <span className="w-2.5 h-2.5 rounded-full bg-teal-700 ring-2 ring-white shadow-2xs" />
                                   </div>
-                                  {act.description && (
-                                    <p className="text-[10px] text-slate-500 mt-0.5 line-clamp-1 leading-snug">
-                                      {act.description}
-                                    </p>
-                                  )}
+
+                                  {/* Stop Content Card */}
+                                  <div className="flex-1 min-w-0 bg-slate-50/70 border border-slate-200/80 rounded-lg px-2.5 py-1.5 shadow-2xs">
+                                    <div className="font-bold text-[11px] text-slate-900 leading-tight">
+                                      {act.title}
+                                    </div>
+                                    {act.description && (
+                                      <p className="text-[10px] text-slate-500 mt-0.5 line-clamp-1 leading-snug">
+                                        {act.description}
+                                      </p>
+                                    )}
+                                  </div>
                                 </div>
-                              </div>
-                            ))}
+                              ))}
+                            </div>
                           </div>
                         )}
                       </div>

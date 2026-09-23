@@ -1,4 +1,4 @@
-import { DestinationCatalogItem, TripDetails } from '@/types/itinerary';
+import { DestinationCatalogItem, TripDetails, HotelModel, RoomModel, MealPlanCode, MealPlanModifier } from '@/types/itinerary';
 
 export const COMPANY_DETAILS = {
   name: 'TRAVEL CARE TOURS Pvt Ltd',
@@ -908,4 +908,321 @@ export const HOTEL_SUGGESTIONS: Record<string, string[]> = {
   Varkala: ['Gateway Hotel Varkala', 'Clafouti Beach Resort', 'BCM Touring Club'],
   Marari: ['Marari Beach Resort - CGH Earth', 'Abad Turtle Beach', 'Carnoustie Ayurveda & Wellness Resort'],
 };
+
+// ============================================================================
+// OFFICIAL HOTEL & ROOM INVENTORY DATABASE (INITIAL CATALOG)
+// Relational structure: Destination -> Hotels -> Rooms (base_b2b_rate represents CP rate)
+// ============================================================================
+
+export const INITIAL_HOTEL_CATALOG: HotelModel[] = [
+  // --- MUNNAR HOTELS ---
+  {
+    id: 'htl-mun-leaf',
+    destination: 'Munnar',
+    hotel_name: 'The Leaf Munnar Resort',
+    star_rating: 4,
+    status: true,
+    rooms: [
+      { id: 'rm-leaf-1', hotel_id: 'htl-mun-leaf', room_category: 'Silver Leaf Valley View', base_b2b_rate: 3200 },
+      { id: 'rm-leaf-2', hotel_id: 'htl-mun-leaf', room_category: 'Golden Leaf Cottage', base_b2b_rate: 4400 },
+      { id: 'rm-leaf-3', hotel_id: 'htl-mun-leaf', room_category: 'Leaf Villa with Private Plunge Pool', base_b2b_rate: 7800 },
+    ],
+  },
+  {
+    id: 'htl-mun-amberdale',
+    destination: 'Munnar',
+    hotel_name: 'Amber Dale Luxury Hotel & Spa',
+    star_rating: 5,
+    status: true,
+    rooms: [
+      { id: 'rm-amber-1', hotel_id: 'htl-mun-amberdale', room_category: 'Superior Valley View Room', base_b2b_rate: 4600 },
+      { id: 'rm-amber-2', hotel_id: 'htl-mun-amberdale', room_category: 'Premium Valley View Balcony', base_b2b_rate: 5800 },
+      { id: 'rm-amber-3', hotel_id: 'htl-mun-amberdale', room_category: 'Honeymoon Jacuzzi Suite', base_b2b_rate: 7200 },
+    ],
+  },
+  {
+    id: 'htl-mun-blanket',
+    destination: 'Munnar',
+    hotel_name: 'Blanket Hotel & Spa',
+    star_rating: 5,
+    status: true,
+    rooms: [
+      { id: 'rm-blanket-1', hotel_id: 'htl-mun-blanket', room_category: 'Premier Mountain View', base_b2b_rate: 5500 },
+      { id: 'rm-blanket-2', hotel_id: 'htl-mun-blanket', room_category: 'Valley Club Room', base_b2b_rate: 6800 },
+      { id: 'rm-blanket-3', hotel_id: 'htl-mun-blanket', room_category: 'Blanket Presidential Suite', base_b2b_rate: 9800 },
+    ],
+  },
+  {
+    id: 'htl-mun-teacounty',
+    destination: 'Munnar',
+    hotel_name: 'Tea County (KTDC)',
+    star_rating: 4,
+    status: true,
+    rooms: [
+      { id: 'rm-teac-1', hotel_id: 'htl-mun-teacounty', room_category: 'Deluxe Heritage Room', base_b2b_rate: 3400 },
+      { id: 'rm-teac-2', hotel_id: 'htl-mun-teacounty', room_category: 'Premium Suite Room', base_b2b_rate: 5100 },
+    ],
+  },
+  {
+    id: 'htl-mun-broadbean',
+    destination: 'Munnar',
+    hotel_name: 'Broad Bean Resort & Spa',
+    star_rating: 4,
+    status: true,
+    rooms: [
+      { id: 'rm-broad-1', hotel_id: 'htl-mun-broadbean', room_category: 'Deluxe Mountain View', base_b2b_rate: 2800 },
+      { id: 'rm-broad-2', hotel_id: 'htl-mun-broadbean', room_category: 'Executive Jacuzzi Suite', base_b2b_rate: 4200 },
+    ],
+  },
+
+  // --- THEKKADY HOTELS ---
+  {
+    id: 'htl-thek-greenwoods',
+    destination: 'Thekkady',
+    hotel_name: 'Greenwoods Resort Thekkady',
+    star_rating: 5,
+    status: true,
+    rooms: [
+      { id: 'rm-green-1', hotel_id: 'htl-thek-greenwoods', room_category: 'Aranya Deluxe Forest View', base_b2b_rate: 4200 },
+      { id: 'rm-green-2', hotel_id: 'htl-thek-greenwoods', room_category: 'Rithika Honeymoon Villa with Plunge Pool', base_b2b_rate: 6600 },
+    ],
+  },
+  {
+    id: 'htl-thek-elephant',
+    destination: 'Thekkady',
+    hotel_name: 'The Elephant Court Thekkady',
+    star_rating: 5,
+    status: true,
+    rooms: [
+      { id: 'rm-eleph-1', hotel_id: 'htl-thek-elephant', room_category: 'Patio Room', base_b2b_rate: 4500 },
+      { id: 'rm-eleph-2', hotel_id: 'htl-thek-elephant', room_category: 'Garden Suite', base_b2b_rate: 6200 },
+      { id: 'rm-eleph-3', hotel_id: 'htl-thek-elephant', room_category: 'Pool Villa', base_b2b_rate: 8500 },
+    ],
+  },
+  {
+    id: 'htl-thek-poetree',
+    destination: 'Thekkady',
+    hotel_name: 'Poetree Sarovar Portico',
+    star_rating: 4,
+    status: true,
+    rooms: [
+      { id: 'rm-poet-1', hotel_id: 'htl-thek-poetree', room_category: 'Club Room', base_b2b_rate: 3600 },
+      { id: 'rm-poet-2', hotel_id: 'htl-thek-poetree', room_category: 'Reservoir View Cottage', base_b2b_rate: 5200 },
+    ],
+  },
+  {
+    id: 'htl-thek-pepper',
+    destination: 'Thekkady',
+    hotel_name: 'Peppervine Hotel',
+    star_rating: 3,
+    status: true,
+    rooms: [
+      { id: 'rm-pep-1', hotel_id: 'htl-thek-pepper', room_category: 'Standard Deluxe Room', base_b2b_rate: 2400 },
+      { id: 'rm-pep-2', hotel_id: 'htl-thek-pepper', room_category: 'Executive Suite', base_b2b_rate: 3300 },
+    ],
+  },
+
+  // --- ALLEPPEY HOTELS & HOUSEBOATS ---
+  {
+    id: 'htl-all-deluxe-hb',
+    destination: 'Alleppey',
+    hotel_name: 'Travel Care Deluxe A/C Houseboat',
+    star_rating: 4,
+    status: true,
+    rooms: [
+      { id: 'rm-hb-del-1', hotel_id: 'htl-all-deluxe-hb', room_category: '1 BHK Private Deluxe AC (All Meals)', base_b2b_rate: 7500 },
+      { id: 'rm-hb-del-2', hotel_id: 'htl-all-deluxe-hb', room_category: '2 BHK Private Deluxe AC (All Meals)', base_b2b_rate: 10500 },
+      { id: 'rm-hb-del-3', hotel_id: 'htl-all-deluxe-hb', room_category: '3 BHK Private Deluxe AC (All Meals)', base_b2b_rate: 14000 },
+    ],
+  },
+  {
+    id: 'htl-all-luxury-hb',
+    destination: 'Alleppey',
+    hotel_name: 'Travel Care Luxury Glass Cruiser Houseboat',
+    star_rating: 5,
+    status: true,
+    rooms: [
+      { id: 'rm-hb-lux-1', hotel_id: 'htl-all-luxury-hb', room_category: '1 BHK Ultra Luxury Full Glass AC (All Meals)', base_b2b_rate: 9800 },
+      { id: 'rm-hb-lux-2', hotel_id: 'htl-all-luxury-hb', room_category: '2 BHK Ultra Luxury Cruiser (All Meals)', base_b2b_rate: 14000 },
+    ],
+  },
+  {
+    id: 'htl-all-ramada',
+    destination: 'Alleppey',
+    hotel_name: 'Ramada by Wyndham Alleppey',
+    star_rating: 5,
+    status: true,
+    rooms: [
+      { id: 'rm-ram-1', hotel_id: 'htl-all-ramada', room_category: 'Superior King Room', base_b2b_rate: 4500 },
+      { id: 'rm-ram-2', hotel_id: 'htl-all-ramada', room_category: 'Junior Lake View Suite', base_b2b_rate: 6200 },
+    ],
+  },
+  {
+    id: 'htl-all-lakepalace',
+    destination: 'Alleppey',
+    hotel_name: 'Lake Palace Resort Alleppey',
+    star_rating: 5,
+    status: true,
+    rooms: [
+      { id: 'rm-lakep-1', hotel_id: 'htl-all-lakepalace', room_category: 'Lake View Cottage', base_b2b_rate: 6200 },
+      { id: 'rm-lakep-2', hotel_id: 'htl-all-lakepalace', room_category: 'Waterfront Luxury Villa', base_b2b_rate: 9500 },
+    ],
+  },
+
+  // --- KOVALAM HOTELS ---
+  {
+    id: 'htl-kov-uday',
+    destination: 'Kovalam',
+    hotel_name: 'Uday Samudra Leisure Beach Hotel',
+    star_rating: 5,
+    status: true,
+    rooms: [
+      { id: 'rm-uday-1', hotel_id: 'htl-kov-uday', room_category: 'Atrium Deluxe Room', base_b2b_rate: 4200 },
+      { id: 'rm-uday-2', hotel_id: 'htl-kov-uday', room_category: 'Exotica Sea View Room', base_b2b_rate: 5600 },
+    ],
+  },
+  {
+    id: 'htl-kov-travancore',
+    destination: 'Kovalam',
+    hotel_name: 'The Travancore Heritage Beach Resort',
+    star_rating: 4,
+    status: true,
+    rooms: [
+      { id: 'rm-trav-1', hotel_id: 'htl-kov-travancore', room_category: 'Heritage Classic House', base_b2b_rate: 3900 },
+      { id: 'rm-trav-2', hotel_id: 'htl-kov-travancore', room_category: 'Premium Sea Facing Mansion', base_b2b_rate: 5800 },
+    ],
+  },
+  {
+    id: 'htl-kov-turtle',
+    destination: 'Kovalam',
+    hotel_name: 'Gokulam Grand Turtle on the Beach',
+    star_rating: 5,
+    status: true,
+    rooms: [
+      { id: 'rm-turt-1', hotel_id: 'htl-kov-turtle', room_category: 'Arabian Sea View Room', base_b2b_rate: 5000 },
+      { id: 'rm-turt-2', hotel_id: 'htl-kov-turtle', room_category: 'Turtle Signature Suite', base_b2b_rate: 8200 },
+    ],
+  },
+
+  // --- COCHIN / KOCHI HOTELS ---
+  {
+    id: 'htl-cok-radisson',
+    destination: 'Cochin',
+    hotel_name: 'Radisson Blu Kochi',
+    star_rating: 5,
+    status: true,
+    rooms: [
+      { id: 'rm-rad-1', hotel_id: 'htl-cok-radisson', room_category: 'Superior King Room', base_b2b_rate: 3800 },
+      { id: 'rm-rad-2', hotel_id: 'htl-cok-radisson', room_category: 'Business Class Executive', base_b2b_rate: 4900 },
+    ],
+  },
+  {
+    id: 'htl-cok-grandhyatt',
+    destination: 'Cochin',
+    hotel_name: 'Grand Hyatt Kochi Bolgatty',
+    star_rating: 5,
+    status: true,
+    rooms: [
+      { id: 'rm-hyatt-1', hotel_id: 'htl-cok-grandhyatt', room_category: '1 King Bed Lake View', base_b2b_rate: 6800 },
+      { id: 'rm-hyatt-2', hotel_id: 'htl-cok-grandhyatt', room_category: 'Grand Executive Suite', base_b2b_rate: 11500 },
+    ],
+  },
+  {
+    id: 'htl-cok-casino',
+    destination: 'Cochin',
+    hotel_name: 'Casino Hotel - CGH Earth',
+    star_rating: 4,
+    status: true,
+    rooms: [
+      { id: 'rm-cas-1', hotel_id: 'htl-cok-casino', room_category: 'Standard Room', base_b2b_rate: 3500 },
+      { id: 'rm-cas-2', hotel_id: 'htl-cok-casino', room_category: 'Executive Heritage Suite', base_b2b_rate: 5100 },
+    ],
+  },
+
+  // --- POOVAR HOTELS ---
+  {
+    id: 'htl-poo-resort',
+    destination: 'Poovar',
+    hotel_name: 'Poovar Island Resort',
+    star_rating: 4,
+    status: true,
+    rooms: [
+      { id: 'rm-poo-1', hotel_id: 'htl-poo-resort', room_category: 'Superior Land Cottage', base_b2b_rate: 3800 },
+      { id: 'rm-poo-2', hotel_id: 'htl-poo-resort', room_category: 'Floating Cottage Estuary View', base_b2b_rate: 5900 },
+    ],
+  },
+  {
+    id: 'htl-poo-estuary',
+    destination: 'Poovar',
+    hotel_name: 'Estuary Sarovar Portico',
+    star_rating: 4,
+    status: true,
+    rooms: [
+      { id: 'rm-est-1', hotel_id: 'htl-poo-estuary', room_category: 'Garden View Room', base_b2b_rate: 3600 },
+      { id: 'rm-est-2', hotel_id: 'htl-poo-estuary', room_category: 'Estuary View Cottage with Pool Access', base_b2b_rate: 6400 },
+    ],
+  },
+
+  // --- KUMARAKOM HOTELS ---
+  {
+    id: 'htl-kum-whispering',
+    destination: 'Kumarakom',
+    hotel_name: 'Whispering Palms Lake Resort',
+    star_rating: 4,
+    status: true,
+    rooms: [
+      { id: 'rm-whisp-1', hotel_id: 'htl-kum-whispering', room_category: 'Lake Facing Room', base_b2b_rate: 4200 },
+      { id: 'rm-whisp-2', hotel_id: 'htl-kum-whispering', room_category: 'Water Villa', base_b2b_rate: 6500 },
+    ],
+  },
+
+  // --- WAYANAD HOTELS ---
+  {
+    id: 'htl-way-vythiri',
+    destination: 'Wayanad',
+    hotel_name: 'Vythiri Resort Wayanad',
+    star_rating: 5,
+    status: true,
+    rooms: [
+      { id: 'rm-vyt-1', hotel_id: 'htl-way-vythiri', room_category: 'Vythiri Haven Forest Cottage', base_b2b_rate: 6600 },
+      { id: 'rm-vyt-2', hotel_id: 'htl-way-vythiri', room_category: 'Luxury Tree House Retreat', base_b2b_rate: 11000 },
+    ],
+  },
+  {
+    id: 'htl-way-morickap',
+    destination: 'Wayanad',
+    hotel_name: 'Morickap Resort Wayanad',
+    star_rating: 4,
+    status: true,
+    rooms: [
+      { id: 'rm-mor-1', hotel_id: 'htl-way-morickap', room_category: 'Studio Suite', base_b2b_rate: 4300 },
+      { id: 'rm-mor-2', hotel_id: 'htl-way-morickap', room_category: 'Jacuzzi Villa View', base_b2b_rate: 6800 },
+    ],
+  },
+];
+
+// ============================================================================
+// FUTURE-PROOF MEAL PLAN MODIFIERS ARCHITECTURE
+// base_b2b_rate represents CP rate (Room + Buffet Breakfast)
+// ============================================================================
+
+export const DEFAULT_MEAL_PLAN_MODIFIERS: Record<MealPlanCode, MealPlanModifier> = {
+  CP: { plan: 'CP', label: 'CP (Buffet Breakfast)', rateMultiplier: 1.0, flatAddition: 0 },
+  MAP: { plan: 'MAP', label: 'MAP (Breakfast & Dinner)', rateMultiplier: 1.0, flatAddition: 600 },
+  AP: { plan: 'AP', label: 'AP (All Meals)', rateMultiplier: 1.0, flatAddition: 1200 },
+  EP: { plan: 'EP', label: 'EP (Room Only)', rateMultiplier: 0.9, flatAddition: 0 },
+};
+
+export function calculateMealPlanRate(baseCpRate: number, mealPlan: string): number {
+  if (!baseCpRate || baseCpRate <= 0) return 0;
+  const upper = mealPlan ? mealPlan.toUpperCase() : 'CP';
+  let code: MealPlanCode = 'CP';
+  if (upper.includes('MAP')) code = 'MAP';
+  else if (upper.includes('AP') && !upper.includes('MAP')) code = 'AP';
+  else if (upper.includes('EP')) code = 'EP';
+  else code = 'CP';
+
+  const modifier = DEFAULT_MEAL_PLAN_MODIFIERS[code] || DEFAULT_MEAL_PLAN_MODIFIERS.CP;
+  return Math.round(baseCpRate * modifier.rateMultiplier + modifier.flatAddition);
+}
 

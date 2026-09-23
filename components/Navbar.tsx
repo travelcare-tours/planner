@@ -26,14 +26,15 @@ import {
   LayoutGrid,
   Table,
   Check,
-  X
+  X,
+  Building2
 } from 'lucide-react';
 import { StaffUser } from '@/types/itinerary';
 import { TC_LOGO_BASE64 } from '@/lib/logo';
 
 interface NavbarProps {
-  currentTab: 'whatsapp-leads' | 'editor' | 'activities' | 'catalog' | 'preview' | 'docs';
-  setCurrentTab: (tab: 'whatsapp-leads' | 'editor' | 'activities' | 'catalog' | 'preview' | 'docs') => void;
+  currentTab: 'whatsapp-leads' | 'editor' | 'activities' | 'catalog' | 'hotels' | 'preview' | 'docs';
+  setCurrentTab: (tab: 'whatsapp-leads' | 'editor' | 'activities' | 'catalog' | 'hotels' | 'preview' | 'docs') => void;
   staffUser: StaffUser | null;
   onLogout: () => void;
   onOpenLogin: () => void;
@@ -212,7 +213,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 type="button"
                 onClick={() => setIsMenuOpen(!isMenuOpen)}
                 className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all border cursor-pointer ${
-                  isMenuOpen || currentTab === 'catalog'
+                  isMenuOpen || currentTab === 'catalog' || currentTab === 'hotels'
                     ? 'bg-slate-900 text-white border-slate-700 shadow-md ring-2 ring-emerald-500/20'
                     : 'bg-white hover:bg-slate-50 text-slate-800 border-slate-300 shadow-2xs hover:shadow-xs'
                 }`}
@@ -267,6 +268,32 @@ export const Navbar: React.FC<NavbarProps> = ({
                             <span className="text-[10px] px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 font-bold">Database</span>
                           </div>
                           <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">Manage destinations, sightseeing activity inventory, and default packages.</p>
+                        </div>
+                      </button>
+
+                      {/* 2. Hotel & Room Rates Dashboard */}
+                      <button
+                        type="button"
+                        id="menu-item-hotels"
+                        onClick={() => {
+                          setCurrentTab('hotels');
+                          setIsMenuOpen(false);
+                        }}
+                        className={`w-full flex items-start gap-3 p-3 rounded-xl text-left text-xs transition-all border cursor-pointer group ${
+                          currentTab === 'hotels' 
+                            ? 'bg-amber-50 border-amber-300 text-amber-950 font-semibold shadow-xs ring-1 ring-amber-400/20' 
+                            : 'bg-white hover:bg-amber-50/50 border-slate-200/80 hover:border-amber-200 text-slate-700 hover:shadow-2xs'
+                        }`}
+                      >
+                        <div className="p-2.5 rounded-xl bg-amber-100/80 text-amber-800 shrink-0 mt-0.5 shadow-2xs group-hover:scale-105 transition-transform">
+                          <Building2 className="w-4 h-4" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between">
+                            <span className="font-extrabold text-slate-900 text-xs group-hover:text-amber-900 transition-colors">Hotels & Room Rates</span>
+                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 font-bold border border-amber-200/60">B2B Tariffs</span>
+                          </div>
+                          <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">Manage hotel properties, room categories, and base B2B contract rates.</p>
                         </div>
                       </button>
 
@@ -416,7 +443,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             type="button"
             onClick={() => setIsMenuOpen(!isMenuOpen)}
             className={`min-h-[40px] w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border transition-all ${
-              isMenuOpen || currentTab === 'catalog'
+              isMenuOpen || currentTab === 'catalog' || currentTab === 'hotels'
                 ? 'bg-slate-900 text-amber-400 border-slate-700 shadow-xs'
                 : 'bg-white hover:bg-slate-50 border-slate-200 text-slate-700 shadow-2xs'
             }`}
@@ -475,6 +502,31 @@ export const Navbar: React.FC<NavbarProps> = ({
                       <span className="text-[10px] px-2 py-0.5 rounded-full bg-indigo-200 text-indigo-900 font-bold">Database</span>
                     </div>
                     <p className="text-xs text-slate-500 mt-0.5">Manage Kerala destinations, sightseeing catalog & default itineraries.</p>
+                  </div>
+                </button>
+
+                {/* 2. Hotel & Room Rates Dashboard */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCurrentTab('hotels');
+                    setIsMenuOpen(false);
+                  }}
+                  className={`w-full flex items-start gap-3 p-3 rounded-xl border text-left transition-all cursor-pointer ${
+                    currentTab === 'hotels'
+                      ? 'bg-amber-50/80 border-amber-300 text-amber-950 font-semibold'
+                      : 'border-slate-200 bg-white hover:bg-slate-50 text-slate-800'
+                  }`}
+                >
+                  <div className="p-2 rounded-lg bg-amber-100 text-amber-800 shrink-0 mt-0.5">
+                    <Building2 className="w-5 h-5" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-slate-900 text-sm">Hotels & Room Rates</span>
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-200 text-amber-900 font-bold">B2B Tariffs</span>
+                    </div>
+                    <p className="text-xs text-slate-500 mt-0.5">Manage hotel properties, room categories, and base B2B contract rates.</p>
                   </div>
                 </button>
 

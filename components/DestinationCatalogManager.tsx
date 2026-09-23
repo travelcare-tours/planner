@@ -1,22 +1,21 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { 
   Plus, 
   MapPin, 
-  Tag, 
   Trash2, 
   Layers, 
-  Sparkles, 
   RotateCcw, 
-  Save, 
   Check, 
-  Info,
-  Clock
+  Search,
+  X,
+  Pencil,
+  GripVertical,
+  Sparkles
 } from 'lucide-react';
 import { DestinationCatalogItem, ActivityItem } from '@/types/itinerary';
 import { INITIAL_DESTINATIONS_CATALOG } from '@/lib/sample-data';
-import { CustomSelect } from '@/components/CustomSelect';
 
 interface DestinationCatalogManagerProps {
   catalog: DestinationCatalogItem[];
@@ -33,14 +32,117 @@ export const DestinationCatalogManager: React.FC<DestinationCatalogManagerProps>
   const [newDestTagline, setNewDestTagline] = useState('');
   const [newDestDesc, setNewDestDesc] = useState('');
 
-  // Add activity form inside selected destination
+  // Destination Search in Sidebar
+  const [searchQuery, setSearchQuery] = useState('');
+
+  // Add activity form toggle & fields (timing and category hidden for now as requested)
+  const [showAddForm, setShowAddForm] = useState<boolean>(false);
   const [actTitle, setActTitle] = useState('');
-  const [actCategory, setActCategory] = useState<ActivityItem['category']>('Sightseeing');
-  const [actTiming, setActTiming] = useState<ActivityItem['timing']>('Morning');
+  const [actCategory] = useState<ActivityItem['category']>('Sightseeing');
+  const [actTiming] = useState<ActivityItem['timing']>('Morning');
   const [actDesc, setActDesc] = useState('');
   const [showSuccessToast, setShowSuccessToast] = useState(false);
 
+  // Inline editing state for activities
+  const [editingActId, setEditingActId] = useState<string | null>(null);
+  const [editingField, setEditingField] = useState<'title' | 'description' | null>(null);
+  const activeEditableRef = useRef<HTMLElement | null>(null);
+  const isCancelingEditRef = useRef<boolean>(false);
+
+  // Drag and drop reordering state
+  const [draggedActIndex, setDraggedActIndex] = useState<number | null>(null);
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+
   const selectedDestination = catalog[selectedDestIndex] || catalog[0];
+
+  // Auto-focus Activity Title or Description when inline editing is activated
+  useEffect(() => {
+    if (editingActId && editingField && activeEditableRef.current) {
+      const el = activeEditableRef.current;
+      el.focus();
+      try {
+        const range = document.createRange();
+        const sel = window.getSelection();
+        range.selectNodeContents(el);
+        range.collapse(false);
+        sel?.removeAllRanges();
+        sel?.addRange(range);
+      } catch {
+        // fallback
+      }
+    }
+  }, [editingActId, editingField]);
+
+  const startEditing = (actId: string, field: 'title' | 'description') => {
+    setEditingActId(actId);
+    setEditingField(field);
+  };
+
+  const commitEditing = (actId: string, field: 'title' | 'description', rawText: string) => {
+    if (isCancelingEditRef.current) {
+      isCancelingEditRef.current = false;
+      setEditingActId(null);
+      setEditingField(null);
+      return;
+    }
+    if (!editingActId || !editingField || !selectedDestination) return;
+    const trimmed = rawText.trim();
+    const updated = [...catalog];
+    const targetDest = { ...updated[selectedDestIndex] };
+    targetDest.defaultActivities = targetDest.defaultActivities.map((a) => {
+      if (a.id === actId) {
+        if (field === 'title') {
+          return { ...a, title: trimmed || a.title };
+        } else {
+          return { ...a, description: trimmed || undefined };
+        }
+      }
+      return a;
+    });
+    updated[selectedDestIndex] = targetDest;
+    onUpdateCatalog(updated);
+    setEditingActId(null);
+    setEditingField(null);
+  };
+
+  // Drag and drop handlers
+  const handleDragStart = (e: React.DragEvent, index: number) => {
+    setDraggedActIndex(index);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', String(index));
+  };
+
+  const handleDragOver = (e: React.DragEvent, index: number) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (dragOverIndex !== index) {
+      setDragOverIndex(index);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent, targetIndex: number) => {
+    e.preventDefault();
+    if (draggedActIndex === null || draggedActIndex === targetIndex || !selectedDestination) {
+      setDraggedActIndex(null);
+      setDragOverIndex(null);
+      return;
+    }
+    const updated = [...catalog];
+    const targetDest = { ...updated[selectedDestIndex] };
+    const acts = [...targetDest.defaultActivities];
+    const [movedItem] = acts.splice(draggedActIndex, 1);
+    acts.splice(targetIndex, 0, movedItem);
+    targetDest.defaultActivities = acts;
+    updated[selectedDestIndex] = targetDest;
+    onUpdateCatalog(updated);
+    setDraggedActIndex(null);
+    setDragOverIndex(null);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedActIndex(null);
+    setDragOverIndex(null);
+  };
 
   const handleAddDestination = (e: React.FormEvent) => {
     e.preventDefault();
@@ -104,35 +206,50 @@ export const DestinationCatalogManager: React.FC<DestinationCatalogManagerProps>
     }
   };
 
+  // Filter destinations by search query
+  const filteredDestinations = catalog
+    .map((item, originalIndex) => ({ item, originalIndex }))
+    .filter(({ item }) => {
+      if (!searchQuery.trim()) return true;
+      const q = searchQuery.toLowerCase().trim();
+      return (
+        item.destination.toLowerCase().includes(q) ||
+        item.tagline.toLowerCase().includes(q) ||
+        item.description.toLowerCase().includes(q)
+      );
+    });
+
   return (
     <div className="space-y-6">
       {/* Top Banner */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="bg-white rounded-2xl border border-slate-200 p-5 sm:p-6 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 text-emerald-800 text-xs font-semibold mb-2 border border-emerald-200">
             <Layers className="w-3.5 h-3.5 text-emerald-700" />
             Configurable Activity Engine
           </div>
-          <h2 className="text-xl font-bold text-slate-900">Destination & Sightseeing Master Catalog</h2>
+          <h2 className="text-xl font-bold text-slate-900">Destination &amp; Sightseeing Master Catalog</h2>
           <p className="text-xs text-slate-600 mt-1 max-w-2xl">
-            Configure default activities and add brand-new destinations (e.g., Athirappilly, Poovar, Bekal) without needing code changes. When staff build itineraries, these populate as one-click options.
+            Configure default sightseeing points and add new destinations (e.g., Athirappilly, Poovar, Bekal). When staff build itineraries, these populate as one-click options in the activity builder.
           </p>
         </div>
 
         <div className="flex items-center gap-2">
           <button
+            type="button"
             onClick={() => handleResetCatalog()}
-            className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors"
+            className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors cursor-pointer"
             title="Reset to initial Kerala package catalog"
           >
             <RotateCcw className="w-3.5 h-3.5 text-slate-500" />
             Reset Defaults
           </button>
           <button
+            type="button"
             onClick={() => setShowAddDestModal(true)}
-            className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-white bg-emerald-800 hover:bg-emerald-900 rounded-lg shadow-sm transition-all"
+            className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-emerald-900 hover:text-emerald-950 bg-white hover:bg-emerald-50 border-2 border-emerald-800 rounded-xl shadow-2xs hover:shadow-xs transition-all cursor-pointer"
           >
-            <Plus className="w-4 h-4" />
+            <Plus className="w-4 h-4 text-emerald-800" />
             New Destination
           </button>
         </div>
@@ -147,184 +264,439 @@ export const DestinationCatalogManager: React.FC<DestinationCatalogManagerProps>
 
       {/* Catalog Split Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Destination List */}
-        <div className="lg:col-span-4 space-y-2">
-          <div className="text-xs font-bold uppercase tracking-wider text-slate-500 px-1 mb-2">
-            Available Destinations ({catalog.length})
+        {/* Left Column: Destination List with Search & Hover States in Floating Card */}
+        <div className="lg:col-span-4 bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-sm space-y-3.5">
+          <div className="flex items-center justify-between px-1">
+            <div className="text-xs font-bold uppercase tracking-wider text-slate-500">
+              Available Destinations ({filteredDestinations.length}{searchQuery ? ` / ${catalog.length}` : ''})
+            </div>
           </div>
 
-          <div className="space-y-1.5">
-            {catalog.map((item, idx) => {
-              const isSelected = selectedDestIndex === idx;
-              return (
-                <div
-                  key={item.destination}
-                  onClick={() => setSelectedDestIndex(idx)}
-                  className={`p-3 rounded-xl cursor-pointer border transition-all ${
-                    isSelected
-                      ? 'bg-emerald-900 text-white border-emerald-950 shadow-sm'
-                      : 'bg-white hover:bg-slate-50 text-slate-800 border-slate-200'
-                  }`}
+          {/* Search / Filter Bar */}
+          <div className="relative">
+            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <input
+              type="text"
+              placeholder="Search destinations..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full text-xs pl-8 pr-7 py-2 border border-slate-200 bg-slate-50/70 hover:bg-white focus:bg-white rounded-xl placeholder:text-slate-400 focus:outline-hidden focus:ring-2 focus:ring-emerald-600 focus:border-transparent transition-all shadow-2xs"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs p-0.5 cursor-pointer"
+                title="Clear search"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            )}
+          </div>
+
+          {/* Destination Cards with Lightened Active Style & Warm Sights Badges */}
+          <div className="space-y-2 max-h-[calc(100vh-320px)] overflow-y-auto pr-1">
+            {filteredDestinations.length === 0 ? (
+              <div className="p-6 text-center text-xs text-slate-500 bg-slate-50 rounded-xl border border-dashed border-slate-200">
+                <p>No destinations match &ldquo;{searchQuery}&rdquo;</p>
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery('')}
+                  className="mt-2 text-emerald-700 font-bold hover:underline cursor-pointer"
                 >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <MapPin className={`w-4 h-4 ${isSelected ? 'text-emerald-300' : 'text-emerald-700'}`} />
-                      <span className="font-bold text-sm">{item.destination}</span>
+                  Clear search
+                </button>
+              </div>
+            ) : (
+              filteredDestinations.map(({ item, originalIndex }) => {
+                const isSelected = selectedDestIndex === originalIndex;
+                return (
+                  <div
+                    key={item.destination}
+                    onClick={() => setSelectedDestIndex(originalIndex)}
+                    className={`p-3 rounded-xl cursor-pointer border transition-all duration-150 ${
+                      isSelected
+                        ? 'bg-[#E6F4F1] text-emerald-950 border-emerald-300/80 border-l-4 border-l-emerald-800 shadow-xs'
+                        : 'bg-slate-50/70 hover:bg-slate-100/90 text-slate-800 border-slate-200/80 hover:border-slate-300 border-l-4 border-l-transparent shadow-2xs hover:shadow-xs'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <MapPin className={`w-4 h-4 ${isSelected ? 'text-emerald-800' : 'text-emerald-700'}`} />
+                        <span className={`font-bold text-sm ${isSelected ? 'text-emerald-950 font-black' : 'text-slate-900'}`}>{item.destination}</span>
+                      </div>
+                      <span className={`text-xs px-2.5 py-0.5 rounded-full font-bold transition-colors ${
+                        isSelected 
+                          ? 'bg-amber-100 text-amber-900 border border-amber-300 shadow-2xs' 
+                          : 'bg-slate-200/70 text-slate-700'
+                      }`}>
+                        {item.defaultActivities.length} sights
+                      </span>
                     </div>
-                    <span className={`text-xs px-2 py-0.5 rounded-full ${
-                      isSelected ? 'bg-emerald-800 text-emerald-200' : 'bg-slate-100 text-slate-600'
-                    }`}>
-                      {item.defaultActivities.length} sights
-                    </span>
+                    <p className={`text-xs mt-1 truncate ${isSelected ? 'text-emerald-800 font-medium' : 'text-slate-500'}`}>
+                      {item.tagline}
+                    </p>
                   </div>
-                  <p className={`text-xs mt-1 truncate ${isSelected ? 'text-emerald-200/80' : 'text-slate-500'}`}>
-                    {item.tagline}
-                  </p>
-                </div>
-              );
-            })}
+                );
+              })
+            )}
           </div>
         </div>
 
-        {/* Selected Destination Details & Activities */}
+        {/* Right Column: Selected Destination Details & Sightseeing Points */}
         <div className="lg:col-span-8 space-y-5">
           {selectedDestination && (
-            <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs space-y-5">
+            <div className="bg-white rounded-2xl border border-slate-200 p-5 sm:p-6 shadow-sm space-y-5">
+              {/* Destination Header Banner */}
               <div className="border-b border-slate-100 pb-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="text-lg font-black text-slate-900">{selectedDestination.destination}</span>
-                    <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-xl font-black text-slate-900">{selectedDestination.destination}</span>
+                    <span className="inline-flex items-center gap-1 text-xs font-bold px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-300/90 shadow-2xs">
+                      <Sparkles className="w-3 h-3 text-amber-600" />
                       Catalog Active
                     </span>
+                    <span className="text-xs text-slate-500 font-medium">
+                      ({selectedDestination.defaultActivities.length} default sights)
+                    </span>
                   </div>
-                  <span className="text-xs text-slate-500">
-                    {selectedDestination.defaultActivities.length} default activities
-                  </span>
+
+                  {/* Primary "+ Add Activity" button (Solid Dark Green) */}
+                  <button
+                    type="button"
+                    onClick={() => setShowAddForm(prev => !prev)}
+                    className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-white bg-emerald-800 hover:bg-emerald-900 active:bg-emerald-950 rounded-xl transition-all shadow-xs hover:shadow-md cursor-pointer self-start sm:self-auto shrink-0"
+                  >
+                    <Plus className={`w-3.5 h-3.5 transition-transform duration-200 ${showAddForm ? 'rotate-45' : ''}`} />
+                    <span>{showAddForm ? 'Close Form' : 'Add Activity'}</span>
+                  </button>
                 </div>
-                <p className="text-xs text-emerald-900 font-medium mt-1">{selectedDestination.tagline}</p>
+                <p className="text-xs text-emerald-900 font-semibold mt-1">{selectedDestination.tagline}</p>
                 <p className="text-xs text-slate-600 mt-1 leading-relaxed">{selectedDestination.description}</p>
               </div>
 
-              {/* Add Activity Form to Master Catalog */}
-              <div className="bg-slate-50 rounded-xl p-4 border border-slate-200/80 space-y-3">
-                <div className="flex items-center gap-2 text-xs font-bold text-slate-800 uppercase tracking-wide">
-                  <Plus className="w-3.5 h-3.5 text-emerald-700" />
-                  Add New Default Activity to {selectedDestination.destination}
-                </div>
+              {/* Collapsible / Expandable "Add New Activity" Form */}
+              {showAddForm && (
+                <div className="bg-slate-50/90 rounded-2xl p-4 sm:p-5 border border-emerald-200/80 shadow-xs space-y-3 animate-in fade-in slide-in-from-top-2 duration-150">
+                  <div className="flex items-center justify-between text-xs font-bold text-slate-800 uppercase tracking-wide">
+                    <div className="flex items-center gap-1.5 text-emerald-950 font-black">
+                      <Plus className="w-4 h-4 text-emerald-700" />
+                      <span>Add New Default Activity to {selectedDestination.destination}</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowAddForm(false)}
+                      className="text-slate-400 hover:text-slate-600 p-1 rounded-lg cursor-pointer"
+                      title="Close form"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
 
-                <form onSubmit={handleAddActivityToDest} className="space-y-3">
-                  <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
-                    <div className="sm:col-span-6">
+                  <form onSubmit={handleAddActivityToDest} className="space-y-3">
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                        Sightseeing / Activity Title *
+                      </label>
                       <input
                         type="text"
                         required
-                        placeholder="Sightseeing / Activity Title *"
+                        autoFocus
+                        placeholder="e.g. Mattupetty Dam & Eco Point"
                         value={actTitle}
                         onChange={(e) => setActTitle(e.target.value)}
-                        className="w-full text-xs px-3 py-2 border border-slate-300 rounded-lg bg-white focus:ring-2 focus:ring-emerald-600 focus:outline-hidden"
+                        className="w-full text-xs px-3.5 py-2.5 border border-slate-300 rounded-xl bg-white focus:ring-2 focus:ring-emerald-600 focus:outline-hidden shadow-2xs"
                       />
                     </div>
-                    <div className="sm:col-span-3">
-                      <CustomSelect
-                        value={actTiming}
-                        onChange={(val) => setActTiming(val as ActivityItem['timing'])}
-                        options={['Morning', 'Afternoon', 'Evening', 'Full Day']}
-                        theme="emerald"
-                        size="md"
-                        ariaLabel="Sightseeing Timing"
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                        Description or Travel Tip (Optional)
+                      </label>
+                      <textarea
+                        rows={2}
+                        placeholder="Concise highlights, photo spots, or best visiting hours..."
+                        value={actDesc}
+                        onChange={(e) => setActDesc(e.target.value)}
+                        className="w-full text-xs px-3.5 py-2 border border-slate-300 rounded-xl bg-white focus:ring-2 focus:ring-emerald-600 focus:outline-hidden shadow-2xs"
                       />
                     </div>
-                    <div className="sm:col-span-3">
-                      <CustomSelect
-                        value={actCategory}
-                        onChange={(val) => setActCategory(val as ActivityItem['category'])}
-                        options={[
-                          'Sightseeing',
-                          'Nature',
-                          'Cultural',
-                          'Adventure',
-                          'Relaxation',
-                          'Heritage',
-                          'Shopping'
-                        ]}
-                        theme="emerald"
-                        size="md"
-                        ariaLabel="Sightseeing Category"
-                      />
+
+                    <div className="flex items-center justify-end gap-2 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowAddForm(false);
+                          setActTitle('');
+                          setActDesc('');
+                        }}
+                        className="px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-200/70 rounded-lg transition-colors cursor-pointer"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="submit"
+                        className="px-4 py-2 text-xs font-bold text-white bg-emerald-800 hover:bg-emerald-900 rounded-xl transition-all shadow-2xs cursor-pointer flex items-center gap-1.5"
+                      >
+                        <Check className="w-3.5 h-3.5" />
+                        <span>Save to {selectedDestination.destination}</span>
+                      </button>
                     </div>
-                  </div>
+                  </form>
+                </div>
+              )}
 
-                  <div>
-                    <input
-                      type="text"
-                      placeholder="Concise description or travel tip for this spot..."
-                      value={actDesc}
-                      onChange={(e) => setActDesc(e.target.value)}
-                      className="w-full text-xs px-3 py-2 border border-slate-300 rounded-lg bg-white focus:ring-2 focus:ring-emerald-600 focus:outline-hidden"
-                    />
+              {/* Master Activities List with Drag-and-Drop & Inline Editing */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                    Registered Sightseeing Points ({selectedDestination.defaultActivities.length})
                   </div>
-
-                  <div className="flex justify-end">
-                    <button
-                      type="submit"
-                      className="px-4 py-1.5 text-xs font-bold text-white bg-emerald-800 hover:bg-emerald-900 rounded-lg transition-colors shadow-2xs"
-                    >
-                      Save to {selectedDestination.destination} Catalog
-                    </button>
-                  </div>
-                </form>
-              </div>
-
-              {/* Master Activities List */}
-              <div className="space-y-2.5">
-                <div className="text-xs font-bold uppercase tracking-wider text-slate-500">
-                  Registered Sightseeing Points
+                  <span className="text-[11px] text-slate-400 font-medium">
+                    Drag handles (⋮⋮) to reorder default sequence
+                  </span>
                 </div>
 
                 {selectedDestination.defaultActivities.length === 0 ? (
-                  <div className="text-center py-8 text-xs text-slate-500 bg-slate-50 rounded-xl border border-dashed border-slate-200">
-                    No default activities recorded for {selectedDestination.destination} yet. Use the form above to add some.
+                  <div className="text-center py-10 text-xs text-slate-500 bg-slate-50 rounded-xl border border-dashed border-slate-200 space-y-3">
+                    <p>No default activities recorded for {selectedDestination.destination} yet.</p>
+                    <button
+                      type="button"
+                      onClick={() => setShowAddForm(true)}
+                      className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold text-white bg-emerald-800 hover:bg-emerald-900 rounded-xl shadow-2xs cursor-pointer"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Add First Activity</span>
+                    </button>
                   </div>
                 ) : (
-                  selectedDestination.defaultActivities.map((act, index) => (
-                    <div
-                      key={act.id}
-                      className="p-3 bg-white rounded-xl border border-slate-200 hover:border-slate-300 transition-colors flex items-start justify-between gap-3 shadow-2xs"
-                    >
-                      <div className="flex items-start gap-2.5">
-                        <span className="text-xs font-mono font-bold text-slate-400 pt-0.5">#{index + 1}</span>
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs font-bold text-slate-900">{act.title}</span>
-                            {act.timing && (
-                              <span className="text-[10px] px-1.5 py-0.2 rounded bg-slate-100 text-slate-600 font-semibold">
-                                {act.timing}
-                              </span>
-                            )}
-                            {act.category && (
-                              <span className="text-[10px] px-1.5 py-0.2 rounded bg-teal-50 text-teal-800 border border-teal-200/60 font-semibold">
-                                {act.category}
-                              </span>
+                  selectedDestination.defaultActivities.map((act, index) => {
+                    const isEditingTitle = editingActId === act.id && editingField === 'title';
+                    const isEditingDesc = editingActId === act.id && editingField === 'description';
+                    const isDragOver = dragOverIndex === index;
+                    const isBeingDragged = draggedActIndex === index;
+
+                    return (
+                      <div
+                        key={act.id}
+                        draggable
+                        onDragStart={(e) => handleDragStart(e, index)}
+                        onDragOver={(e) => handleDragOver(e, index)}
+                        onDrop={(e) => handleDrop(e, index)}
+                        onDragEnd={handleDragEnd}
+                        className={`p-3 bg-white rounded-xl border transition-all flex items-start justify-between gap-3 shadow-2xs group ${
+                          isDragOver 
+                            ? 'border-emerald-600 ring-2 ring-emerald-500/40 bg-emerald-50/40 scale-[1.01]' 
+                            : 'border-slate-200 hover:border-slate-300'
+                        } ${isBeingDragged ? 'opacity-30 border-dashed border-slate-400' : ''}`}
+                      >
+                        <div className="flex items-start gap-2.5 flex-1 min-w-0">
+                          {/* Drag Handle Icon */}
+                          <div
+                            className="pt-1 text-slate-300 group-hover:text-slate-500 hover:text-slate-800 cursor-grab active:cursor-grabbing transition-colors shrink-0"
+                            title="Drag to reorder default sightseeing sequence"
+                          >
+                            <GripVertical className="w-4 h-4 stroke-[2.2]" />
+                          </div>
+
+                          {/* Sightseeing Number */}
+                          <span className="text-xs font-mono font-bold text-slate-400 pt-0.5 shrink-0">
+                            #{index + 1}
+                          </span>
+
+                          {/* Title & Description with inline editing (same format as Activities tab) */}
+                          <div className="flex-1 min-w-0 space-y-1">
+                            {/* Title Inline Editable */}
+                            <div className="group/title inline-flex items-center gap-1.5 max-w-full">
+                              <h4
+                                ref={(node) => {
+                                  if (isEditingTitle) {
+                                    activeEditableRef.current = node;
+                                  }
+                                }}
+                                contentEditable={isEditingTitle}
+                                suppressContentEditableWarning={true}
+                                onClick={() => {
+                                  if (!isEditingTitle) {
+                                    startEditing(act.id, 'title');
+                                  }
+                                }}
+                                onBlur={(e) => {
+                                  commitEditing(act.id, 'title', e.currentTarget.innerText);
+                                }}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                    e.preventDefault();
+                                    e.currentTarget.blur();
+                                  }
+                                  if (e.key === 'Escape') {
+                                    e.preventDefault();
+                                    isCancelingEditRef.current = true;
+                                    e.currentTarget.innerText = act.title;
+                                    setEditingActId(null);
+                                    setEditingField(null);
+                                    e.currentTarget.blur();
+                                  }
+                                }}
+                                onPaste={(e) => {
+                                  e.preventDefault();
+                                  const text = e.clipboardData.getData('text/plain');
+                                  document.execCommand('insertText', false, text);
+                                }}
+                                style={
+                                  isEditingTitle
+                                    ? {
+                                        outline: '2px dashed #008080',
+                                        padding: '4px 6px',
+                                        background: '#f8fcfc',
+                                        borderRadius: '6px',
+                                      }
+                                    : undefined
+                                }
+                                className={`text-xs font-bold leading-tight transition-all ${
+                                  isEditingTitle
+                                    ? 'text-slate-900 cursor-text shadow-xs'
+                                    : 'text-slate-900 hover:bg-emerald-50/80 px-1.5 py-0.5 -mx-1.5 rounded-lg cursor-pointer'
+                                }`}
+                                title={isEditingTitle ? 'Press Enter or click outside to save' : 'Click to edit activity name'}
+                              >
+                                {act.title}
+                              </h4>
+                              {!isEditingTitle && (
+                                <button
+                                  type="button"
+                                  onClick={() => startEditing(act.id, 'title')}
+                                  className="p-0.5 text-slate-400 hover:text-emerald-700 opacity-0 group-hover/title:opacity-100 transition-opacity shrink-0 cursor-pointer"
+                                  title="Edit activity name"
+                                >
+                                  <Pencil className="w-3 h-3" />
+                                </button>
+                              )}
+                            </div>
+
+                            {/* Description Inline Editable */}
+                            {act.description || isEditingDesc ? (
+                              <div className="group/desc relative flex items-start justify-between gap-2 max-w-full">
+                                <p
+                                  ref={(node) => {
+                                    if (isEditingDesc) {
+                                      activeEditableRef.current = node;
+                                    }
+                                  }}
+                                  contentEditable={isEditingDesc}
+                                  suppressContentEditableWarning={true}
+                                  onClick={() => {
+                                    if (!isEditingDesc) {
+                                      startEditing(act.id, 'description');
+                                    }
+                                  }}
+                                  onBlur={(e) => {
+                                    commitEditing(act.id, 'description', e.currentTarget.innerText);
+                                  }}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter' && !e.shiftKey) {
+                                      e.preventDefault();
+                                      e.currentTarget.blur();
+                                    }
+                                    if (e.key === 'Escape') {
+                                      e.preventDefault();
+                                      isCancelingEditRef.current = true;
+                                      e.currentTarget.innerText = act.description || '';
+                                      setEditingActId(null);
+                                      setEditingField(null);
+                                      e.currentTarget.blur();
+                                    }
+                                  }}
+                                  onPaste={(e) => {
+                                    e.preventDefault();
+                                    const text = e.clipboardData.getData('text/plain');
+                                    document.execCommand('insertText', false, text);
+                                  }}
+                                  style={
+                                    isEditingDesc
+                                      ? {
+                                          outline: '2px dashed #008080',
+                                          padding: '4px 6px',
+                                          background: '#f8fcfc',
+                                          borderRadius: '6px',
+                                        }
+                                      : undefined
+                                  }
+                                  data-placeholder="Add guidance, highlights, or tips..."
+                                  className={`text-[11px] leading-relaxed transition-all whitespace-pre-wrap flex-1 ${
+                                    isEditingDesc
+                                      ? 'text-slate-800 cursor-text shadow-xs empty:before:content-[attr(data-placeholder)] empty:before:text-slate-400 empty:before:italic'
+                                      : 'text-slate-600 hover:bg-emerald-50/80 px-1.5 py-0.5 -mx-1.5 rounded-lg cursor-pointer'
+                                  }`}
+                                  title={isEditingDesc ? 'Shift+Enter for newline, Enter or click outside to save' : 'Click to edit activity description'}
+                                >
+                                  {act.description || ''}
+                                </p>
+                                {!isEditingDesc && (
+                                  <button
+                                    type="button"
+                                    onClick={() => startEditing(act.id, 'description')}
+                                    className="p-0.5 text-slate-400 hover:text-emerald-700 opacity-0 group-hover/desc:opacity-100 transition-opacity shrink-0 mt-0.5 cursor-pointer"
+                                    title="Edit description"
+                                  >
+                                    <Pencil className="w-3 h-3" />
+                                  </button>
+                                )}
+                              </div>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => startEditing(act.id, 'description')}
+                                className="group/desc text-[11px] text-slate-400 italic inline-flex items-center gap-1 hover:text-emerald-700 px-1.5 py-0.5 -mx-1.5 rounded-lg transition-colors cursor-pointer"
+                                title="Click to add description or travel tips"
+                              >
+                                <Plus className="w-3 h-3" />
+                                <span>Add tips or highlights...</span>
+                              </button>
                             )}
                           </div>
-                          {act.description && (
-                            <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">
-                              {act.description}
-                            </p>
-                          )}
+                        </div>
+
+                        {/* Action buttons: Pencil Edit & Trash Delete */}
+                        <div className="flex items-center gap-1 shrink-0 pt-0.5">
+                          <button
+                            type="button"
+                            onClick={() => startEditing(act.id, 'title')}
+                            className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                              editingActId === act.id
+                                ? 'text-emerald-800 bg-emerald-100'
+                                : 'text-slate-400 hover:text-emerald-700 hover:bg-emerald-50'
+                            }`}
+                            title="Edit activity inline"
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteActivity(act.id)}
+                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                            title="Remove from catalog"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
                         </div>
                       </div>
+                    );
+                  })
+                )}
 
-                      <button
-                        onClick={() => handleDeleteActivity(act.id)}
-                        className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
-                        title="Remove from catalog"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  ))
+                {/* Bottom trigger to add another activity when list is long */}
+                {!showAddForm && selectedDestination.defaultActivities.length > 0 && (
+                  <div className="pt-2 flex justify-center">
+                    <button
+                      type="button"
+                      onClick={() => setShowAddForm(true)}
+                      className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-xl transition-all shadow-2xs cursor-pointer"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Add Another Activity to {selectedDestination.destination}</span>
+                    </button>
+                  </div>
                 )}
               </div>
             </div>
@@ -342,8 +714,9 @@ export const DestinationCatalogManager: React.FC<DestinationCatalogManagerProps>
                 <h4 className="font-bold text-sm">Add New Destination to Master Catalog</h4>
               </div>
               <button
+                type="button"
                 onClick={() => setShowAddDestModal(false)}
-                className="text-white/70 hover:text-white text-lg font-bold"
+                className="text-white/70 hover:text-white text-lg font-bold cursor-pointer"
               >
                 ✕
               </button>
@@ -394,13 +767,13 @@ export const DestinationCatalogManager: React.FC<DestinationCatalogManagerProps>
                 <button
                   type="button"
                   onClick={() => setShowAddDestModal(false)}
-                  className="px-3 py-2 text-xs font-medium text-slate-600 hover:bg-slate-100 rounded-lg"
+                  className="px-3 py-2 text-xs font-medium text-slate-600 hover:bg-slate-100 rounded-lg cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 text-xs font-bold text-white bg-emerald-800 hover:bg-emerald-900 rounded-lg shadow-sm"
+                  className="px-4 py-2 text-xs font-bold text-white bg-emerald-800 hover:bg-emerald-900 rounded-lg shadow-sm cursor-pointer"
                 >
                   Create Destination
                 </button>

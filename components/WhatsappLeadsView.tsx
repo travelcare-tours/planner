@@ -3,7 +3,9 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
   TripDetails, 
-  AccommodationItem 
+  AccommodationItem,
+  HotelModel,
+  StaffUser 
 } from '@/types/itinerary';
 import { 
   MessageSquare, 
@@ -39,12 +41,15 @@ import {
   Info,
   Table,
   CreditCard,
-  AlertTriangle
+  AlertTriangle,
+  Building2,
+  Edit3
 } from 'lucide-react';
 import { 
   DEFAULT_KERALA_DESTINATIONS,
   LOCATION_OPTIONS, 
-  HOTEL_SUGGESTIONS 
+  HOTEL_SUGGESTIONS,
+  INITIAL_HOTEL_CATALOG
 } from '@/lib/sample-data';
 import DatePicker, { parseDateSafe, formatDisplayDate } from '@/components/DatePicker';
 import { 
@@ -59,7 +64,6 @@ import {
   formatVoucherCode, 
   parseVoucherNumber 
 } from '@/lib/google-sheets-sync';
-import { StaffUser } from '@/types/itinerary';
 
 interface WhatsappLeadsViewProps {
   trip: TripDetails;
@@ -69,6 +73,8 @@ interface WhatsappLeadsViewProps {
   onNavigateToV1Trip?: () => void;
   onOpenGoogleSheets?: () => void;
   staffUser?: StaffUser | null;
+  hotelCatalog?: HotelModel[];
+  onUpdateHotelCatalog?: (newCatalog: HotelModel[]) => void;
 }
 
 // Allowed vehicle options as strictly requested:
@@ -202,7 +208,23 @@ export const WhatsappLeadsView: React.FC<WhatsappLeadsViewProps> = ({
   onNavigateToV1Trip,
   onOpenGoogleSheets,
   staffUser,
+  hotelCatalog = INITIAL_HOTEL_CATALOG,
+  onUpdateHotelCatalog,
 }) => {
+  // Dynamic cascading Hotel Catalog states
+  const [customHotelRows, setCustomHotelRows] = useState<Record<number, boolean>>({});
+  const [customRoomRows, setCustomRoomRows] = useState<Record<number, boolean>>({});
+
+  // Consolidated destinations for datalist and lookups
+  const catalogDestinations = useMemo(() => {
+    const set = new Set<string>();
+    hotelCatalog.forEach((h) => {
+      if (h.destination) set.add(h.destination.trim());
+    });
+    DEFAULT_KERALA_DESTINATIONS.forEach((d) => set.add(d));
+    return Array.from(set);
+  }, [hotelCatalog]);
+
   // 1. Persistent WhatsApp Message Parser State (kept until quote completed)
   const [pasteInput, setPasteInput] = useState<string>(() => {
     if (typeof window !== 'undefined') {
@@ -544,6 +566,66 @@ export const WhatsappLeadsView: React.FC<WhatsappLeadsViewProps> = ({
 
     // If destination or hotel changed, update route summary, inclusions and days
     if (field === 'destination' || field === 'hotelName') {
+      const updatedRoute = buildRouteSummary(trip.pickupLocation, updatedAccs, trip.dropoffLocation);
+      const updatedDays = syncDaysWithAccommodationsAndPickup(trip.days || [], updatedAccs, trip.pickupDate, trip.dropoffLocation);
+      const { inclusions, exclusions } = generateDynamicInclusionsAndExclusions(trip.vehicleType, updatedAccs, trip.inclusions, trip.exclusions);
+      onUpdateTrip({
+        ...trip,
+        accommodations: updatedAccs,
+        routeSummary: updatedRoute,
+        days: updatedDays,
+        inclusions,
+        exclusions,
+        totalPackageCost: newTotalStr,
+      });
+      return;
+    }
+
+    onUpdateTrip({
+      ...trip,
+      accommodations: updatedAccs,
+      totalPackageCost: newTotalStr,
+    });
+  };
+
+  // Helper to handle multiple hotel fields update in one batch (e.g., selecting catalog hotel + room + base rate)
+  const handleUpdateHotelRowMulti = (index: number, updates: Partial<AccommodationItem>) => {
+    let updatedAccs = [...trip.accommodations];
+    const target = { ...updatedAccs[index], ...updates };
+
+    const price = Number(target.b2bPrice) || 0;
+    const nights = Math.max(1, Number(target.nights) || 1);
+    target.b2bTotal = price * nights;
+    target.nights = nights;
+
+    updatedAccs[index] = target;
+
+    const newTotalStr = calculateTotalCostString(updatedAccs, vehicleCost, marginType, marginPercent, marginCustomAmount, adjustmentAmount);
+
+    if ('nights' in updates) {
+      updatedAccs = recalculateSequentialCheckIns(trip.pickupDate, updatedAccs);
+      const totalNights = updatedAccs.reduce((sum, a) => sum + (a.nights || 1), 0);
+      const updatedDropoff = calculateDropoffFromPickup(trip.pickupDate, totalNights);
+      const updatedRoute = buildRouteSummary(trip.pickupLocation, updatedAccs, trip.dropoffLocation);
+      const updatedDays = syncDaysWithAccommodationsAndPickup(trip.days || [], updatedAccs, trip.pickupDate, trip.dropoffLocation);
+      const { inclusions, exclusions } = generateDynamicInclusionsAndExclusions(trip.vehicleType, updatedAccs, trip.inclusions, trip.exclusions);
+
+      onUpdateTrip({
+        ...trip,
+        accommodations: updatedAccs,
+        durationNights: totalNights,
+        durationDays: totalNights + 1,
+        dropoffDate: updatedDropoff,
+        routeSummary: updatedRoute,
+        days: updatedDays,
+        inclusions,
+        exclusions,
+        totalPackageCost: newTotalStr,
+      });
+      return;
+    }
+
+    if ('destination' in updates || 'hotelName' in updates) {
       const updatedRoute = buildRouteSummary(trip.pickupLocation, updatedAccs, trip.dropoffLocation);
       const updatedDays = syncDaysWithAccommodationsAndPickup(trip.days || [], updatedAccs, trip.pickupDate, trip.dropoffLocation);
       const { inclusions, exclusions } = generateDynamicInclusionsAndExclusions(trip.vehicleType, updatedAccs, trip.inclusions, trip.exclusions);
@@ -1882,40 +1964,197 @@ ${hotelLines}
 
                     {/* Destination */}
                     <td className="py-3.5 px-4 font-extrabold text-slate-900">
-                      <input
-                        type="text"
-                        value={acc.destination}
-                        onChange={(e) => handleUpdateHotelRow(index, 'destination', e.target.value)}
-                        className="w-full h-10 bg-slate-50/70 hover:bg-slate-100/70 border border-slate-200/80 font-extrabold text-slate-900 focus:outline-hidden focus:bg-white focus:ring-2 focus:ring-[#0B2545] rounded-xl px-3 text-sm transition-all"
-                      />
+                      <div className="relative">
+                        <input
+                          type="text"
+                          list={`dest-list-desk-${index}`}
+                          value={acc.destination}
+                          onChange={(e) => handleUpdateHotelRow(index, 'destination', e.target.value)}
+                          placeholder="e.g. Munnar"
+                          className="w-full h-10 bg-slate-50/70 hover:bg-slate-100/70 border border-slate-200/80 font-extrabold text-slate-900 focus:outline-hidden focus:bg-white focus:ring-2 focus:ring-[#0B2545] rounded-xl px-3 text-sm transition-all"
+                        />
+                        <datalist id={`dest-list-desk-${index}`}>
+                          {catalogDestinations.map((d) => (
+                            <option key={d} value={d}>{d}</option>
+                          ))}
+                        </datalist>
+                      </div>
                     </td>
 
-                    {/* Hotel Name */}
+                    {/* Hotel Name (Cascading dynamic dropdown or custom input) */}
                     <td className="py-3.5 px-4">
-                      <input
-                        type="text"
-                        list={`hotel-sug-${index}`}
-                        value={acc.hotelName}
-                        onChange={(e) => handleUpdateHotelRow(index, 'hotelName', e.target.value)}
-                        placeholder="Type hotel name..."
-                        className="w-full h-10 bg-white border border-slate-300 rounded-xl px-3.5 text-sm text-slate-900 font-bold focus:outline-hidden focus:ring-2 focus:ring-[#0B2545] shadow-2xs"
-                      />
-                      <datalist id={`hotel-sug-${index}`}>
-                        {suggestions.map((s) => (
-                          <option key={s} value={s}>{s}</option>
-                        ))}
-                      </datalist>
+                      {(() => {
+                        const destNorm = (acc.destination || '').trim().toLowerCase();
+                        const availableHotels = hotelCatalog.filter((h) => {
+                          if (h.status === false) return false;
+                          const hDest = (h.destination || '').trim().toLowerCase();
+                          return destNorm === hDest || destNorm.includes(hDest) || hDest.includes(destNorm);
+                        });
+                        const matchedHotel = hotelCatalog.find(
+                          (h) => h.hotel_name.trim().toLowerCase() === (acc.hotelName || '').trim().toLowerCase()
+                        );
+                        const isCustomMode = customHotelRows[index] || (availableHotels.length === 0 && !matchedHotel);
+
+                        if (!isCustomMode && (availableHotels.length > 0 || matchedHotel)) {
+                          return (
+                            <div className="flex items-center gap-1.5">
+                              <select
+                                value={matchedHotel ? matchedHotel.id : ''}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  if (val === '__custom__') {
+                                    setCustomHotelRows((prev) => ({ ...prev, [index]: true }));
+                                    return;
+                                  }
+                                  const selected = hotelCatalog.find((h) => h.id === val);
+                                  if (selected) {
+                                    const firstRoom = selected.rooms && selected.rooms.length > 0 ? selected.rooms[0] : null;
+                                    handleUpdateHotelRowMulti(index, {
+                                      hotelName: selected.hotel_name,
+                                      roomCategory: firstRoom ? firstRoom.room_category : (acc.roomCategory || 'Deluxe Room'),
+                                      b2bPrice: firstRoom ? firstRoom.base_b2b_rate : (acc.b2bPrice || 0),
+                                    });
+                                  } else {
+                                    handleUpdateHotelRow(index, 'hotelName', '');
+                                  }
+                                }}
+                                className="w-full h-10 bg-white border border-slate-300 rounded-xl px-3 text-sm font-bold text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-[#0B2545] shadow-2xs cursor-pointer truncate"
+                              >
+                                <option value="">-- Select Hotel ({availableHotels.length} available) --</option>
+                                {availableHotels.map((h) => (
+                                  <option key={h.id} value={h.id}>
+                                    {h.hotel_name} {h.star_rating ? `(${h.star_rating}★)` : ''}
+                                  </option>
+                                ))}
+                                {matchedHotel && !availableHotels.some((h) => h.id === matchedHotel.id) && (
+                                  <option value={matchedHotel.id}>
+                                    {matchedHotel.hotel_name} {matchedHotel.star_rating ? `(${matchedHotel.star_rating}★)` : ''}
+                                  </option>
+                                )}
+                                <option value="__custom__">✎ Custom Hotel (Type Manually)...</option>
+                              </select>
+                              <button
+                                type="button"
+                                onClick={() => setCustomHotelRows((prev) => ({ ...prev, [index]: true }))}
+                                className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer shrink-0"
+                                title="Switch to custom hotel name"
+                              >
+                                <Edit3 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          );
+                        }
+
+                        return (
+                          <div className="flex items-center gap-1.5">
+                            <input
+                              type="text"
+                              list={`hotel-sug-desk-${index}`}
+                              value={acc.hotelName}
+                              onChange={(e) => handleUpdateHotelRow(index, 'hotelName', e.target.value)}
+                              placeholder={availableHotels.length > 0 ? "Type custom hotel..." : "Enter hotel name..."}
+                              className="w-full h-10 bg-white border border-slate-300 rounded-xl px-3.5 text-sm text-slate-900 font-bold focus:outline-hidden focus:ring-2 focus:ring-[#0B2545] shadow-2xs"
+                            />
+                            <datalist id={`hotel-sug-desk-${index}`}>
+                              {availableHotels.map((h) => (
+                                <option key={h.id} value={h.hotel_name}>{h.hotel_name} ({h.star_rating}★)</option>
+                              ))}
+                              {suggestions.map((s) => (
+                                <option key={s} value={s}>{s}</option>
+                              ))}
+                            </datalist>
+                            {availableHotels.length > 0 && (
+                              <button
+                                type="button"
+                                onClick={() => setCustomHotelRows((prev) => ({ ...prev, [index]: false }))}
+                                className="px-2 py-1 text-[11px] font-bold text-teal-800 bg-teal-50 hover:bg-teal-100 border border-teal-200 rounded-lg transition-colors cursor-pointer whitespace-nowrap shrink-0"
+                                title="Pick from destination hotel catalog"
+                              >
+                                Catalog
+                              </button>
+                            )}
+                          </div>
+                        );
+                      })()}
                     </td>
 
-                    {/* Room Category */}
+                    {/* Room Category (Filtered to rooms in selected hotel) */}
                     <td className="py-3.5 px-4">
-                      <input
-                        type="text"
-                        value={acc.roomCategory}
-                        onChange={(e) => handleUpdateHotelRow(index, 'roomCategory', e.target.value)}
-                        placeholder="Deluxe Room"
-                        className="w-full h-10 bg-white border border-slate-300 rounded-xl px-3.5 text-sm text-slate-800 font-medium focus:outline-hidden focus:ring-2 focus:ring-[#0B2545] shadow-2xs"
-                      />
+                      {(() => {
+                        const matchedHotel = hotelCatalog.find(
+                          (h) => h.hotel_name.trim().toLowerCase() === (acc.hotelName || '').trim().toLowerCase()
+                        );
+                        const rooms = matchedHotel?.rooms || [];
+                        const matchedRoom = rooms.find(
+                          (r) => r.room_category.trim().toLowerCase() === (acc.roomCategory || '').trim().toLowerCase()
+                        );
+                        const isCustomRoom = customRoomRows[index] || (rooms.length === 0 && !matchedRoom);
+
+                        if (!isCustomRoom && rooms.length > 0) {
+                          return (
+                            <div className="flex items-center gap-1.5">
+                              <select
+                                value={matchedRoom ? matchedRoom.id : ''}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  if (val === '__custom__') {
+                                    setCustomRoomRows((prev) => ({ ...prev, [index]: true }));
+                                    return;
+                                  }
+                                  const selectedRoom = rooms.find((r) => r.id === val);
+                                  if (selectedRoom) {
+                                    handleUpdateHotelRowMulti(index, {
+                                      roomCategory: selectedRoom.room_category,
+                                      b2bPrice: selectedRoom.base_b2b_rate,
+                                    });
+                                  } else {
+                                    handleUpdateHotelRow(index, 'roomCategory', '');
+                                  }
+                                }}
+                                className="w-full h-10 bg-white border border-slate-300 rounded-xl px-3 text-sm font-medium text-slate-800 focus:outline-hidden focus:ring-2 focus:ring-[#0B2545] shadow-2xs cursor-pointer truncate"
+                              >
+                                <option value="">-- Select Room ({rooms.length}) --</option>
+                                {rooms.map((r) => (
+                                  <option key={r.id} value={r.id}>
+                                    {r.room_category} (₹{r.base_b2b_rate.toLocaleString('en-IN')}/nt)
+                                  </option>
+                                ))}
+                                <option value="__custom__">✎ Custom Room (Type Manually)...</option>
+                              </select>
+                              <button
+                                type="button"
+                                onClick={() => setCustomRoomRows((prev) => ({ ...prev, [index]: true }))}
+                                className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer shrink-0"
+                                title="Switch to custom room category"
+                              >
+                                <Edit3 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          );
+                        }
+
+                        return (
+                          <div className="flex items-center gap-1.5">
+                            <input
+                              type="text"
+                              value={acc.roomCategory}
+                              onChange={(e) => handleUpdateHotelRow(index, 'roomCategory', e.target.value)}
+                              placeholder="Deluxe Room"
+                              className="w-full h-10 bg-white border border-slate-300 rounded-xl px-3.5 text-sm text-slate-800 font-medium focus:outline-hidden focus:ring-2 focus:ring-[#0B2545] shadow-2xs"
+                            />
+                            {rooms.length > 0 && (
+                              <button
+                                type="button"
+                                onClick={() => setCustomRoomRows((prev) => ({ ...prev, [index]: false }))}
+                                className="px-2 py-1 text-[11px] font-bold text-teal-800 bg-teal-50 hover:bg-teal-100 border border-teal-200 rounded-lg transition-colors cursor-pointer whitespace-nowrap shrink-0"
+                                title="Pick from hotel's catalog room categories"
+                              >
+                                Catalog
+                              </button>
+                            )}
+                          </div>
+                        );
+                      })()}
                     </td>
 
                     {/* Requirement 6: Check-in Date validated via number of nights spent */}
@@ -2060,11 +2299,17 @@ ${hotelLines}
                   <div className="flex-1 relative">
                     <input
                       type="text"
+                      list={`dest-list-mob-${index}`}
                       value={acc.destination}
                       onChange={(e) => handleUpdateHotelRow(index, 'destination', e.target.value)}
                       className="w-full h-11 sm:h-12 bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-sm sm:text-base font-extrabold text-slate-900 focus:outline-hidden focus:bg-white focus:ring-2 focus:ring-emerald-600 shadow-2xs"
                       placeholder="Destination (e.g. Munnar)"
                     />
+                    <datalist id={`dest-list-mob-${index}`}>
+                      {catalogDestinations.map((d) => (
+                        <option key={d} value={d}>{d}</option>
+                      ))}
+                    </datalist>
                   </div>
 
                   <button
@@ -2078,41 +2323,163 @@ ${hotelLines}
                   </button>
                 </div>
 
-                {/* Hotel Name Input with Datalist */}
-                <div className="space-y-1.5">
-                  <div className="flex items-center justify-between text-xs font-semibold text-slate-600">
-                    <span>Hotel / Resort Name</span>
-                    <span className="text-slate-400 text-[11px]">Type or pick suggestion</span>
-                  </div>
-                  <input
-                    type="text"
-                    list={`hotel-sug-mob-${index}`}
-                    value={acc.hotelName}
-                    onChange={(e) => handleUpdateHotelRow(index, 'hotelName', e.target.value)}
-                    placeholder="Enter hotel name..."
-                    className="w-full h-11 sm:h-12 bg-white border border-slate-300 rounded-xl px-3.5 py-2 text-sm sm:text-base text-slate-900 font-bold focus:outline-hidden focus:ring-2 focus:ring-[#0B2545] shadow-2xs"
-                  />
-                  <datalist id={`hotel-sug-mob-${index}`}>
-                    {suggestions.map((s) => (
-                      <option key={s} value={s}>{s}</option>
-                    ))}
-                  </datalist>
-                </div>
+                {/* Hotel Name (Cascading dynamic dropdown or custom input) */}
+                {(() => {
+                  const destNorm = (acc.destination || '').trim().toLowerCase();
+                  const availableHotels = hotelCatalog.filter((h) => {
+                    if (h.status === false) return false;
+                    const hDest = (h.destination || '').trim().toLowerCase();
+                    return destNorm === hDest || destNorm.includes(hDest) || hDest.includes(destNorm);
+                  });
+                  const matchedHotel = hotelCatalog.find(
+                    (h) => h.hotel_name.trim().toLowerCase() === (acc.hotelName || '').trim().toLowerCase()
+                  );
+                  const isCustomMode = customHotelRows[index] || (availableHotels.length === 0 && !matchedHotel);
 
-                {/* 2-Column Grid: Room Category & Check-In Date */}
+                  return (
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between text-xs font-semibold text-slate-600">
+                        <span className="flex items-center gap-1.5 font-bold text-slate-800">
+                          <Building2 className="w-3.5 h-3.5 text-teal-700" />
+                          <span>Hotel / Resort Property</span>
+                        </span>
+                        {availableHotels.length > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => setCustomHotelRows((prev) => ({ ...prev, [index]: !isCustomMode }))}
+                            className="text-[11px] font-bold text-teal-700 hover:text-teal-900 cursor-pointer"
+                          >
+                            {isCustomMode ? '← Pick from Catalog' : '✎ Type Custom'}
+                          </button>
+                        )}
+                      </div>
+                      {!isCustomMode && (availableHotels.length > 0 || matchedHotel) ? (
+                        <select
+                          value={matchedHotel ? matchedHotel.id : ''}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            if (val === '__custom__') {
+                              setCustomHotelRows((prev) => ({ ...prev, [index]: true }));
+                              return;
+                            }
+                            const selected = hotelCatalog.find((h) => h.id === val);
+                            if (selected) {
+                              const firstRoom = selected.rooms && selected.rooms.length > 0 ? selected.rooms[0] : null;
+                              handleUpdateHotelRowMulti(index, {
+                                hotelName: selected.hotel_name,
+                                roomCategory: firstRoom ? firstRoom.room_category : (acc.roomCategory || 'Deluxe Room'),
+                                b2bPrice: firstRoom ? firstRoom.base_b2b_rate : (acc.b2bPrice || 0),
+                              });
+                            } else {
+                              handleUpdateHotelRow(index, 'hotelName', '');
+                            }
+                          }}
+                          className="w-full h-11 sm:h-12 bg-white border border-slate-300 rounded-xl px-3 text-sm font-bold text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-[#0B2545] shadow-2xs"
+                        >
+                          <option value="">-- Select Hotel ({availableHotels.length} available) --</option>
+                          {availableHotels.map((h) => (
+                            <option key={h.id} value={h.id}>
+                              {h.hotel_name} {h.star_rating ? `(${h.star_rating}★)` : ''}
+                            </option>
+                          ))}
+                          {matchedHotel && !availableHotels.some((h) => h.id === matchedHotel.id) && (
+                            <option value={matchedHotel.id}>
+                              {matchedHotel.hotel_name} {matchedHotel.star_rating ? `(${matchedHotel.star_rating}★)` : ''}
+                            </option>
+                          )}
+                          <option value="__custom__">✎ Custom Hotel (Type Manually)...</option>
+                        </select>
+                      ) : (
+                        <>
+                          <input
+                            type="text"
+                            list={`hotel-sug-mob-${index}`}
+                            value={acc.hotelName}
+                            onChange={(e) => handleUpdateHotelRow(index, 'hotelName', e.target.value)}
+                            placeholder={availableHotels.length > 0 ? "Type custom hotel..." : "Enter hotel name..."}
+                            className="w-full h-11 sm:h-12 bg-white border border-slate-300 rounded-xl px-3.5 py-2 text-sm sm:text-base text-slate-900 font-bold focus:outline-hidden focus:ring-2 focus:ring-[#0B2545] shadow-2xs"
+                          />
+                          <datalist id={`hotel-sug-mob-${index}`}>
+                            {availableHotels.map((h) => (
+                              <option key={h.id} value={h.hotel_name}>{h.hotel_name} ({h.star_rating}★)</option>
+                            ))}
+                            {suggestions.map((s) => (
+                              <option key={s} value={s}>{s}</option>
+                            ))}
+                          </datalist>
+                        </>
+                      )}
+                    </div>
+                  );
+                })()}
+
+                {/* 2-Column Grid: Room Category (Cascading) & Check-In Date */}
                 <div className="grid grid-cols-2 gap-2.5">
-                  <div className="space-y-1.5">
-                    <label className="block text-xs font-semibold text-slate-700">
-                      Room Category
-                    </label>
-                    <input
-                      type="text"
-                      value={acc.roomCategory}
-                      onChange={(e) => handleUpdateHotelRow(index, 'roomCategory', e.target.value)}
-                      placeholder="Deluxe Room"
-                      className="w-full h-11 bg-white border border-slate-300 rounded-xl px-3 text-xs sm:text-sm text-slate-800 font-medium focus:outline-hidden focus:ring-2 focus:ring-[#0B2545] shadow-2xs"
-                    />
-                  </div>
+                  {(() => {
+                    const matchedHotel = hotelCatalog.find(
+                      (h) => h.hotel_name.trim().toLowerCase() === (acc.hotelName || '').trim().toLowerCase()
+                    );
+                    const rooms = matchedHotel?.rooms || [];
+                    const matchedRoom = rooms.find(
+                      (r) => r.room_category.trim().toLowerCase() === (acc.roomCategory || '').trim().toLowerCase()
+                    );
+                    const isCustomRoom = customRoomRows[index] || (rooms.length === 0 && !matchedRoom);
+
+                    return (
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between text-xs font-semibold text-slate-700">
+                          <span>Room Category</span>
+                          {rooms.length > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => setCustomRoomRows((prev) => ({ ...prev, [index]: !isCustomRoom }))}
+                              className="text-[10px] font-bold text-teal-700 hover:text-teal-900 cursor-pointer"
+                            >
+                              {isCustomRoom ? '← Catalog' : '✎ Custom'}
+                            </button>
+                          )}
+                        </div>
+                        {!isCustomRoom && rooms.length > 0 ? (
+                          <select
+                            value={matchedRoom ? matchedRoom.id : ''}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              if (val === '__custom__') {
+                                setCustomRoomRows((prev) => ({ ...prev, [index]: true }));
+                                return;
+                              }
+                              const selectedRoom = rooms.find((r) => r.id === val);
+                              if (selectedRoom) {
+                                handleUpdateHotelRowMulti(index, {
+                                  roomCategory: selectedRoom.room_category,
+                                  b2bPrice: selectedRoom.base_b2b_rate,
+                                });
+                              } else {
+                                handleUpdateHotelRow(index, 'roomCategory', '');
+                              }
+                            }}
+                            className="w-full h-11 bg-white border border-slate-300 rounded-xl px-2 text-xs sm:text-sm text-slate-800 font-medium focus:outline-hidden focus:ring-2 focus:ring-[#0B2545] shadow-2xs"
+                          >
+                            <option value="">-- Room ({rooms.length}) --</option>
+                            {rooms.map((r) => (
+                              <option key={r.id} value={r.id}>
+                                {r.room_category} (₹{r.base_b2b_rate.toLocaleString('en-IN')})
+                              </option>
+                            ))}
+                            <option value="__custom__">✎ Custom...</option>
+                          </select>
+                        ) : (
+                          <input
+                            type="text"
+                            value={acc.roomCategory}
+                            onChange={(e) => handleUpdateHotelRow(index, 'roomCategory', e.target.value)}
+                            placeholder="Deluxe Room"
+                            className="w-full h-11 bg-white border border-slate-300 rounded-xl px-3 text-xs sm:text-sm text-slate-800 font-medium focus:outline-hidden focus:ring-2 focus:ring-[#0B2545] shadow-2xs"
+                          />
+                        )}
+                      </div>
+                    );
+                  })()}
 
                   <div className="space-y-1.5">
                     <label className="block text-xs font-semibold text-slate-700">

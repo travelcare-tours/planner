@@ -119,11 +119,36 @@ export interface PlannerImportPayload {
     meal_plan: string;
     check_in?: string;
   }>;
-  days?: Array<{
+    days?: Array<{
     day: number;
     date?: string;
     title: string;
     destination: string;
     activities?: string[];
   }>;
+}
+
+export interface RoomModel {
+  id: string;
+  hotel_id: string;
+  room_category: string;
+  base_b2b_rate: number; // represents base CP rate per room per night
+}
+
+export interface HotelModel {
+  id: string;
+  destination: string;
+  hotel_name: string;
+  star_rating: number | string; // e.g. 3, 4, 5, 'Luxury', 'Heritage'
+  status: boolean; // true = Active, false = Inactive
+  rooms: RoomModel[];
+}
+
+export type MealPlanCode = 'CP' | 'MAP' | 'AP' | 'EP';
+
+export interface MealPlanModifier {
+  plan: MealPlanCode;
+  label: string;
+  rateMultiplier: number;
+  flatAddition: number;
 }

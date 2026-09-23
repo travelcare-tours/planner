@@ -266,3 +266,18 @@ select option:checked {
     box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.05) !important; /* Adds a subtle shadow */
   }
 }
+
+/* Document Editor PDF Preview Header: Single-Row Split on Desktop */
+.pdf-template-header,
+.pdf-preview-header {
+  background-color: #ffffff;
+}
+
+@media (min-width: 768px) {
+  .pdf-template-header,
+  .pdf-preview-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+}
