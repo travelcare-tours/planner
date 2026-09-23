@@ -19,10 +19,23 @@ import {
   Bed, 
   IndianRupee,
   ShieldCheck,
-  ChevronDown
+  ChevronDown,
+  Download,
+  Upload,
+  FileSpreadsheet,
+  Zap,
+  Table as TableIcon,
+  ArrowUpDown,
+  AlertCircle,
+  FileText
 } from 'lucide-react';
 import { HotelModel, RoomModel } from '@/types/itinerary';
 import { INITIAL_HOTEL_CATALOG, DEFAULT_KERALA_DESTINATIONS } from '@/lib/sample-data';
+import { 
+  generateHotelExcelTemplate, 
+  exportCurrentHotelsToExcel, 
+  parseHotelsFromExcel 
+} from '@/lib/hotel-excel-utils';
 
 interface HotelRoomCatalogManagerProps {
   hotelCatalog: HotelModel[];
@@ -33,6 +46,23 @@ export const HotelRoomCatalogManager: React.FC<HotelRoomCatalogManagerProps> = (
   hotelCatalog,
   onUpdateHotelCatalog,
 }) => {
+  // Quick Edit Rates Spreadsheet Grid Mode
+  const [isQuickEditMode, setIsQuickEditMode] = useState<boolean>(false);
+  const [modifiedRoomIds, setModifiedRoomIds] = useState<Set<string>>(new Set());
+
+  // Excel Upload Modal State
+  const [showUploadModal, setShowUploadModal] = useState<boolean>(false);
+  const [isUploading, setIsUploading] = useState<boolean>(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [parsedPreview, setParsedPreview] = useState<{
+    hotels: HotelModel[];
+    totalRows: number;
+    totalRooms: number;
+    warnings: string[];
+    fileName: string;
+  } | null>(null);
+  const [importMode, setImportMode] = useState<'merge' | 'replace'>('merge');
+
   // Filters & Search
   const [selectedDestination, setSelectedDestination] = useState<string>('All');
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -269,6 +299,161 @@ export const HotelRoomCatalogManager: React.FC<HotelRoomCatalogManagerProps> = (
     showToast('Room details updated.');
   };
 
+  // Flattened rooms for Quick Edit Rates spreadsheet view
+  const flattenedRooms = useMemo(() => {
+    const list: Array<{
+      hotelId: string;
+      hotelName: string;
+      destination: string;
+      starRating: number | string;
+      hotelStatus: boolean;
+      roomId: string;
+      roomCategory: string;
+      baseB2BRate: number;
+      index: number;
+    }> = [];
+
+    let count = 0;
+    filteredHotels.forEach((hotel) => {
+      if (!hotel.rooms || hotel.rooms.length === 0) {
+        list.push({
+          hotelId: hotel.id,
+          hotelName: hotel.hotel_name,
+          destination: hotel.destination,
+          starRating: hotel.star_rating,
+          hotelStatus: hotel.status !== false,
+          roomId: `${hotel.id}-empty`,
+          roomCategory: 'Standard Room (Empty)',
+          baseB2BRate: 0,
+          index: count++,
+        });
+      } else {
+        hotel.rooms.forEach((room) => {
+          list.push({
+            hotelId: hotel.id,
+            hotelName: hotel.hotel_name,
+            destination: hotel.destination,
+            starRating: hotel.star_rating,
+            hotelStatus: hotel.status !== false,
+            roomId: room.id,
+            roomCategory: room.room_category,
+            baseB2BRate: room.base_b2b_rate,
+            index: count++,
+          });
+        });
+      }
+    });
+
+    return list;
+  }, [filteredHotels]);
+
+  // Quick update rate in spreadsheet grid
+  const handleQuickUpdateRate = (hotelId: string, roomId: string, newRate: number) => {
+    const rateVal = Math.max(0, newRate);
+    const updated = hotelCatalog.map((h) => {
+      if (h.id === hotelId) {
+        return {
+          ...h,
+          rooms: h.rooms.map((r) => {
+            if (r.id === roomId) {
+              return { ...r, base_b2b_rate: rateVal };
+            }
+            return r;
+          }),
+        };
+      }
+      return h;
+    });
+    onUpdateHotelCatalog(updated);
+    setModifiedRoomIds((prev) => new Set(prev).add(roomId));
+  };
+
+  // Quick update category name in spreadsheet grid
+  const handleQuickUpdateCategory = (hotelId: string, roomId: string, newCategory: string) => {
+    const trimmed = newCategory.trim();
+    if (!trimmed) return;
+    const updated = hotelCatalog.map((h) => {
+      if (h.id === hotelId) {
+        return {
+          ...h,
+          rooms: h.rooms.map((r) => {
+            if (r.id === roomId) {
+              return { ...r, room_category: trimmed };
+            }
+            return r;
+          }),
+        };
+      }
+      return h;
+    });
+    onUpdateHotelCatalog(updated);
+    setModifiedRoomIds((prev) => new Set(prev).add(roomId));
+  };
+
+  // Excel File Selected for Import
+  const handleFileSelected = async (file: File) => {
+    setUploadError(null);
+    setIsUploading(true);
+    try {
+      const parsed = await parseHotelsFromExcel(file);
+      setParsedPreview({
+        ...parsed,
+        fileName: file.name,
+      });
+    } catch (err: any) {
+      setUploadError(err.message || 'Failed to read Excel file. Please ensure it matches the template.');
+      setParsedPreview(null);
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  // Commit Excel Import
+  const handleCommitImport = () => {
+    if (!parsedPreview) return;
+
+    if (importMode === 'replace') {
+      onUpdateHotelCatalog(parsedPreview.hotels);
+      showToast(`Catalog replaced with ${parsedPreview.hotels.length} hotels (${parsedPreview.totalRooms} rooms) from ${parsedPreview.fileName}`);
+    } else {
+      // Merge: match by (destination, hotel_name)
+      const merged = [...hotelCatalog];
+      parsedPreview.hotels.forEach((incoming) => {
+        const existingIdx = merged.findIndex(
+          (h) => h.destination.toLowerCase() === incoming.destination.toLowerCase() &&
+                 h.hotel_name.toLowerCase() === incoming.hotel_name.toLowerCase()
+        );
+        if (existingIdx >= 0) {
+          const existing = merged[existingIdx];
+          const mergedRooms = [...existing.rooms];
+          incoming.rooms.forEach((inRoom) => {
+            const rIdx = mergedRooms.findIndex(
+              (r) => r.room_category.toLowerCase() === inRoom.room_category.toLowerCase()
+            );
+            if (rIdx >= 0) {
+              mergedRooms[rIdx] = { ...mergedRooms[rIdx], base_b2b_rate: inRoom.base_b2b_rate };
+            } else {
+              mergedRooms.push({ ...inRoom, hotel_id: existing.id });
+            }
+          });
+          merged[existingIdx] = {
+            ...existing,
+            star_rating: incoming.star_rating || existing.star_rating,
+            status: incoming.status,
+            rooms: mergedRooms,
+          };
+        } else {
+          merged.push(incoming);
+        }
+      });
+      onUpdateHotelCatalog(merged);
+      showToast(`Successfully merged ${parsedPreview.hotels.length} hotels (${parsedPreview.totalRooms} rooms) into catalog.`);
+    }
+
+    setShowUploadModal(false);
+    setParsedPreview(null);
+  };
+
   // Reset entire catalog to Travel Care Tours official Kerala defaults
   const handleResetDefaults = () => {
     if (confirm('Reset entire Hotel & Room Database to Travel Care Tours official Kerala defaults? Any custom added properties will be replaced.')) {
@@ -308,23 +493,88 @@ export const HotelRoomCatalogManager: React.FC<HotelRoomCatalogManagerProps> = (
           </div>
         </div>
 
-        <div className="flex items-center gap-2 shrink-0">
+        {/* Action Controls Toolbar */}
+        <div className="flex items-center gap-2 flex-wrap shrink-0">
+          {/* Quick Edit Rates Spreadsheet Toggle */}
           <button
             type="button"
-            onClick={handleResetDefaults}
-            className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors cursor-pointer"
-            title="Reset to default partner hotel catalog"
+            id="btn-toggle-quick-edit-rates"
+            onClick={() => setIsQuickEditMode(!isQuickEditMode)}
+            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-extrabold transition-all cursor-pointer border ${
+              isQuickEditMode
+                ? 'bg-amber-500 hover:bg-amber-600 text-slate-950 border-amber-600 shadow-md ring-2 ring-amber-400/30'
+                : 'bg-white hover:bg-amber-50/70 text-slate-800 border-amber-300 shadow-2xs'
+            }`}
+            title="Toggle high-speed spreadsheet grid to tab through and update prices for dozens of rooms in minutes"
           >
-            <RotateCcw className="w-3.5 h-3.5 text-slate-500" />
-            Reset Defaults
+            <Zap className={`w-3.5 h-3.5 ${isQuickEditMode ? 'fill-slate-950' : 'text-amber-600'}`} />
+            <span>Quick Edit Rates</span>
+            <span className={`text-[10px] px-1.5 py-0.5 rounded-md font-black ${
+              isQuickEditMode ? 'bg-slate-950 text-amber-300' : 'bg-amber-100 text-amber-900'
+            }`}>
+              {isQuickEditMode ? 'ON' : 'GRID'}
+            </span>
           </button>
+
+          {/* Download Excel Template */}
+          <button
+            type="button"
+            id="btn-download-hotel-template"
+            onClick={generateHotelExcelTemplate}
+            className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-emerald-900 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 rounded-xl transition-all cursor-pointer shadow-2xs"
+            title="Download formatted Excel (.xlsx) template with sample Kerala hotels and instructions"
+          >
+            <Download className="w-3.5 h-3.5 text-emerald-700" />
+            <span className="hidden sm:inline">Excel Template</span>
+            <span className="sm:hidden">Template</span>
+          </button>
+
+          {/* Import Excel */}
+          <button
+            type="button"
+            id="btn-import-hotel-excel"
+            onClick={() => {
+              setShowUploadModal(true);
+              setParsedPreview(null);
+              setUploadError(null);
+            }}
+            className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-slate-800 bg-white hover:bg-slate-50 border border-slate-300 rounded-xl transition-all cursor-pointer shadow-2xs"
+            title="Upload filled Excel (.xlsx, .xls, .csv) to import or bulk-update tariffs"
+          >
+            <Upload className="w-3.5 h-3.5 text-slate-600" />
+            <span>Import</span>
+          </button>
+
+          {/* Export Current Excel */}
+          <button
+            type="button"
+            onClick={() => exportCurrentHotelsToExcel(hotelCatalog)}
+            className="flex items-center gap-1.5 px-2.5 py-2 text-xs font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition-all cursor-pointer"
+            title="Export all current hotel tariffs to an Excel file (.xlsx)"
+          >
+            <FileSpreadsheet className="w-3.5 h-3.5 text-slate-600" />
+            <span className="hidden md:inline">Export</span>
+          </button>
+
+          {/* New Property */}
           <button
             type="button"
             onClick={handleOpenCreateHotel}
-            className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-emerald-900 hover:text-emerald-950 bg-white hover:bg-emerald-50 border-2 border-emerald-800 rounded-xl shadow-2xs hover:shadow-xs transition-all cursor-pointer"
+            className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-emerald-900 hover:text-emerald-950 bg-white hover:bg-emerald-50 border-2 border-emerald-800 rounded-xl shadow-2xs hover:shadow-xs transition-all cursor-pointer"
           >
             <Plus className="w-4 h-4 text-emerald-800" />
-            New Property
+            <span className="hidden sm:inline">New Property</span>
+            <span className="sm:hidden">Add</span>
+          </button>
+
+          {/* Reset Defaults */}
+          <button
+            type="button"
+            onClick={handleResetDefaults}
+            className="p-2 text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
+            title="Reset to default partner hotel catalog"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
           </button>
         </div>
       </div>
@@ -459,36 +709,230 @@ export const HotelRoomCatalogManager: React.FC<HotelRoomCatalogManagerProps> = (
           </div>
         </div>
 
-        {/* Right Column: Hotel Properties & Room Sub-Tables */}
+        {/* Right Column: Hotel Properties & Room Sub-Tables OR Quick Edit Spreadsheet */}
         <div className="lg:col-span-8 space-y-5">
           {/* Work Area Header */}
           <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-lg font-black text-slate-900">
-                  {selectedDestination === 'All' ? 'All Partner Hotels' : `${selectedDestination} Properties`}
+                  {isQuickEditMode 
+                    ? (selectedDestination === 'All' ? 'Quick Edit All Rates' : `Quick Edit ${selectedDestination} Rates`)
+                    : (selectedDestination === 'All' ? 'All Partner Hotels' : `${selectedDestination} Properties`)
+                  }
                 </span>
-                <span className="inline-flex items-center gap-1 text-xs font-bold px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-300 shadow-2xs">
-                  <Sparkles className="w-3 h-3 text-amber-600" />
-                  {filteredHotels.length} Listed
-                </span>
+                {isQuickEditMode ? (
+                  <span className="inline-flex items-center gap-1 text-xs font-black px-2.5 py-0.5 rounded-full bg-amber-400 text-slate-950 border border-amber-500 shadow-2xs">
+                    <Zap className="w-3 h-3 fill-slate-950" />
+                    Spreadsheet Mode ({flattenedRooms.length} room tariffs)
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 text-xs font-bold px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-300 shadow-2xs">
+                    <Sparkles className="w-3 h-3 text-amber-600" />
+                    {filteredHotels.length} Listed
+                  </span>
+                )}
               </div>
               <p className="text-xs text-slate-500 mt-0.5">
-                Showing partner accommodations with pre-configured B2B base rates for quotation automation.
+                {isQuickEditMode 
+                  ? 'Tab or use Enter / Arrow Keys (↓ / ↑) to jump directly through rate inputs and update tariffs across rooms rapidly.'
+                  : 'Showing partner accommodations with pre-configured B2B base rates for quotation automation.'
+                }
               </p>
             </div>
 
-            <button
-              type="button"
-              onClick={handleOpenCreateHotel}
-              className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-white bg-emerald-800 hover:bg-emerald-900 active:bg-emerald-950 rounded-xl transition-all shadow-xs hover:shadow-md cursor-pointer self-start sm:self-auto shrink-0"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span>Add Hotel</span>
-            </button>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                id="btn-switch-spreadsheet-mode"
+                onClick={() => setIsQuickEditMode(!isQuickEditMode)}
+                className={`flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer border ${
+                  isQuickEditMode
+                    ? 'bg-slate-900 text-white border-slate-700 shadow-xs'
+                    : 'bg-amber-50 hover:bg-amber-100 text-amber-950 border-amber-300 shadow-2xs'
+                }`}
+                title="Toggle between spreadsheet rate editor and card view"
+              >
+                {isQuickEditMode ? (
+                  <>
+                    <Layers className="w-3.5 h-3.5 text-amber-400" />
+                    <span>Card View</span>
+                  </>
+                ) : (
+                  <>
+                    <Zap className="w-3.5 h-3.5 text-amber-600" />
+                    <span>Quick Edit Rates</span>
+                  </>
+                )}
+              </button>
+
+              {!isQuickEditMode && (
+                <button
+                  type="button"
+                  onClick={handleOpenCreateHotel}
+                  className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-white bg-emerald-800 hover:bg-emerald-900 active:bg-emerald-950 rounded-xl transition-all shadow-xs hover:shadow-md cursor-pointer self-start sm:self-auto shrink-0"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Add Hotel</span>
+                </button>
+              )}
+            </div>
           </div>
 
-          {/* Hotels List */}
+          {/* Quick Edit Rates Spreadsheet Grid View */}
+          {isQuickEditMode ? (
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden space-y-0">
+              <div className="p-3 bg-amber-50/80 border-b border-amber-200/80 flex items-center justify-between text-xs text-amber-950 font-medium flex-wrap gap-2">
+                <div className="flex items-center gap-2">
+                  <Zap className="w-4 h-4 text-amber-700 fill-amber-500 shrink-0" />
+                  <span>
+                    Spreadsheet Fast-Editing: Press <b>Enter</b> or <b>↓ / ↑ Arrow</b> to advance through room rates quickly. Press <b>Tab</b> to move across cells.
+                  </span>
+                </div>
+                {modifiedRoomIds.size > 0 && (
+                  <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-900 font-bold text-[11px] border border-emerald-300 shadow-2xs">
+                    ✓ {modifiedRoomIds.size} modified live
+                  </span>
+                )}
+              </div>
+
+              <div className="overflow-x-auto max-h-[70vh] overflow-y-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead className="sticky top-0 z-10 bg-slate-100 border-b border-slate-200 text-[11px] font-extrabold uppercase tracking-wider text-slate-700 shadow-xs">
+                    <tr>
+                      <th className="py-2.5 px-3 text-center w-12">#</th>
+                      <th className="py-2.5 px-3 w-28">Destination</th>
+                      <th className="py-2.5 px-3">Hotel / Resort</th>
+                      <th className="py-2.5 px-3 w-20 text-center">Stars</th>
+                      <th className="py-2.5 px-3">Room Category</th>
+                      <th className="py-2.5 px-3 w-40 text-right">Base B2B Tariff (CP)</th>
+                      <th className="py-2.5 px-3 w-24 text-center">Status</th>
+                      <th className="py-2.5 px-3 w-16 text-center">Delete</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 text-xs">
+                    {flattenedRooms.length === 0 ? (
+                      <tr>
+                        <td colSpan={8} className="py-12 text-center text-slate-500 font-medium">
+                          No room categories match the selected destination or search filter.
+                        </td>
+                      </tr>
+                    ) : (
+                      flattenedRooms.map((item) => {
+                        const isModified = modifiedRoomIds.has(item.roomId);
+                        return (
+                          <tr
+                            key={`${item.hotelId}-${item.roomId}`}
+                            className={`transition-colors ${
+                              isModified ? 'bg-amber-50/50 hover:bg-amber-50/80' : 'hover:bg-slate-50/80'
+                            }`}
+                          >
+                            <td className="py-2 px-3 text-center text-slate-400 font-mono text-[11px]">
+                              {item.index + 1}
+                            </td>
+                            <td className="py-2 px-3">
+                              <span className="inline-block px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-900 font-bold text-[11px]">
+                                {item.destination}
+                              </span>
+                            </td>
+                            <td className="py-2 px-3 font-bold text-slate-900">
+                              <span className="line-clamp-1" title={item.hotelName}>
+                                {item.hotelName}
+                              </span>
+                            </td>
+                            <td className="py-2 px-3 text-center">
+                              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-amber-50 text-amber-900 font-bold text-[10px] border border-amber-200">
+                                <Star className="w-2.5 h-2.5 fill-amber-500 text-amber-500" />
+                                <span>{item.starRating}★</span>
+                              </span>
+                            </td>
+                            <td className="py-2 px-3 font-medium text-slate-800">
+                              <input
+                                type="text"
+                                defaultValue={item.roomCategory}
+                                onBlur={(e) => {
+                                  if (e.target.value.trim() !== item.roomCategory) {
+                                    handleQuickUpdateCategory(item.hotelId, item.roomId, e.target.value);
+                                  }
+                                }}
+                                className="w-full bg-transparent hover:bg-white focus:bg-white border border-transparent hover:border-slate-300 focus:border-emerald-600 rounded px-1.5 py-0.5 font-medium text-xs text-slate-800 focus:outline-hidden"
+                              />
+                            </td>
+                            <td className="py-2 px-3 text-right">
+                              <div className={`inline-flex items-center gap-1 bg-white border rounded-lg px-2 py-1 shadow-2xs transition-all ${
+                                isModified
+                                  ? 'border-amber-400 ring-2 ring-amber-400/20'
+                                  : 'border-slate-300 focus-within:border-emerald-600 focus-within:ring-2 focus-within:ring-emerald-500/20'
+                              }`}>
+                                <span className="text-slate-400 font-bold text-xs">₹</span>
+                                <input
+                                  id={`rate-cell-${item.index}`}
+                                  data-rate-index={item.index}
+                                  type="number"
+                                  step={100}
+                                  defaultValue={item.baseB2BRate}
+                                  onBlur={(e) => {
+                                    const val = Math.max(0, parseInt(e.target.value, 10) || 0);
+                                    if (val !== item.baseB2BRate) {
+                                      handleQuickUpdateRate(item.hotelId, item.roomId, val);
+                                    }
+                                  }}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter' || e.key === 'ArrowDown') {
+                                      e.preventDefault();
+                                      const next = document.getElementById(`rate-cell-${item.index + 1}`) as HTMLInputElement;
+                                      if (next) {
+                                        next.focus();
+                                        next.select();
+                                      }
+                                    } else if (e.key === 'ArrowUp') {
+                                      e.preventDefault();
+                                      const prev = document.getElementById(`rate-cell-${item.index - 1}`) as HTMLInputElement;
+                                      if (prev) {
+                                        prev.focus();
+                                        prev.select();
+                                      }
+                                    }
+                                  }}
+                                  className="w-24 text-right text-xs font-black text-slate-900 focus:outline-hidden"
+                                />
+                              </div>
+                            </td>
+                            <td className="py-2 px-3 text-center">
+                              <button
+                                type="button"
+                                onClick={() => handleToggleHotelStatus(item.hotelId)}
+                                className={`text-[10px] font-bold px-2 py-0.5 rounded-full border cursor-pointer transition-colors ${
+                                  item.hotelStatus
+                                    ? 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100'
+                                    : 'bg-rose-50 text-rose-800 border-rose-300 hover:bg-rose-100'
+                                }`}
+                                title="Click to toggle hotel Active / Inactive"
+                              >
+                                {item.hotelStatus ? 'Active' : 'Inactive'}
+                              </button>
+                            </td>
+                            <td className="py-2 px-3 text-center">
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteRoom(item.hotelId, item.roomId)}
+                                className="p-1 text-slate-400 hover:text-rose-600 rounded transition-colors cursor-pointer"
+                                title="Delete this room category"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ) : (
+            <>
+              {/* Hotels List */}
           {filteredHotels.length === 0 ? (
             <div className="p-10 text-center bg-white rounded-2xl border border-dashed border-slate-200 space-y-3 shadow-sm">
               <Building2 className="w-10 h-10 text-slate-300 mx-auto" />
@@ -779,6 +1223,8 @@ export const HotelRoomCatalogManager: React.FC<HotelRoomCatalogManagerProps> = (
               ))}
             </div>
           )}
+            </>
+          )}
         </div>
       </div>
 
@@ -885,6 +1331,244 @@ export const HotelRoomCatalogManager: React.FC<HotelRoomCatalogManagerProps> = (
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Excel Upload & Import Modal */}
+      {showUploadModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl max-w-2xl w-full shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[90vh]">
+            {/* Modal Header */}
+            <div className="px-6 py-4 bg-emerald-800 text-white flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-white/10 flex items-center justify-center">
+                  <FileSpreadsheet className="w-5 h-5 text-emerald-200" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm text-white">Import Hotel Inventory from Excel</h3>
+                  <p className="text-xs text-emerald-200">Upload .xlsx, .xls, or .csv files to batch update properties and room rates</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowUploadModal(false);
+                  setParsedPreview(null);
+                  setUploadError(null);
+                }}
+                className="w-8 h-8 rounded-lg flex items-center justify-center text-white/70 hover:text-white hover:bg-white/10 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 overflow-y-auto space-y-4">
+              {/* Template Helper Callout */}
+              <div className="flex items-center justify-between p-3.5 bg-emerald-50/70 border border-emerald-200/80 rounded-xl text-xs text-emerald-900">
+                <div className="flex items-center gap-2">
+                  <FileText className="w-4 h-4 text-emerald-700 flex-shrink-0" />
+                  <span>
+                    Need the formatted structure? Download the pre-filled template with Kerala hotels and instructions.
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => generateHotelExcelTemplate()}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-800 text-white font-semibold text-xs hover:bg-emerald-900 shadow-xs cursor-pointer whitespace-nowrap"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Download .xlsx</span>
+                </button>
+              </div>
+
+              {/* Upload Dropzone */}
+              <div className="relative border-2 border-dashed border-slate-300 hover:border-emerald-600 rounded-2xl p-6 text-center transition-colors bg-slate-50/50 hover:bg-emerald-50/30">
+                <input
+                  type="file"
+                  accept=".xlsx, .xls, .csv"
+                  disabled={isUploading}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) handleFileSelected(file);
+                  }}
+                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-not-allowed"
+                />
+                <div className="flex flex-col items-center justify-center pointer-events-none">
+                  <div className="w-12 h-12 rounded-2xl bg-emerald-100/70 flex items-center justify-center text-emerald-800 mb-3 shadow-xs">
+                    {isUploading ? (
+                      <div className="w-6 h-6 border-2 border-emerald-800 border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      <Upload className="w-6 h-6" />
+                    )}
+                  </div>
+                  <p className="text-sm font-semibold text-slate-800">
+                    {isUploading ? 'Reading spreadsheet data...' : 'Drop your Excel file here or click to browse'}
+                  </p>
+                  <p className="text-xs text-slate-500 mt-1">
+                    Supports Microsoft Excel (.xlsx, .xls) and CSV (.csv) files
+                  </p>
+                </div>
+              </div>
+
+              {/* Error Alert */}
+              {uploadError && (
+                <div className="flex items-start gap-2.5 p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs">
+                  <AlertCircle className="w-4 h-4 text-rose-600 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <span className="font-bold">Import Error: </span>
+                    <span>{uploadError}</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Parsed Preview Section */}
+              {parsedPreview && (
+                <div className="space-y-3 pt-2">
+                  <div className="flex items-center justify-between bg-emerald-50 border border-emerald-200 p-3 rounded-xl">
+                    <div className="flex items-center gap-2">
+                      <Check className="w-4 h-4 text-emerald-700 font-bold" />
+                      <span className="text-xs font-bold text-emerald-900">
+                        {parsedPreview.fileName} parsed successfully!
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2 text-xs">
+                      <span className="px-2 py-0.5 rounded-md bg-emerald-800 text-white font-semibold">
+                        {parsedPreview.hotels.length} Properties
+                      </span>
+                      <span className="px-2 py-0.5 rounded-md bg-white border border-emerald-300 text-emerald-900 font-semibold">
+                        {parsedPreview.totalRooms} Room Tariffs
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Warnings if any */}
+                  {parsedPreview.warnings.length > 0 && (
+                    <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-900 max-h-24 overflow-y-auto space-y-1">
+                      <div className="font-bold flex items-center gap-1 text-amber-800">
+                        <AlertCircle className="w-3.5 h-3.5" />
+                        <span>Notices ({parsedPreview.warnings.length}):</span>
+                      </div>
+                      {parsedPreview.warnings.slice(0, 5).map((w, idx) => (
+                        <div key={idx} className="text-slate-600 text-[11px]">• {w}</div>
+                      ))}
+                      {parsedPreview.warnings.length > 5 && (
+                        <div className="text-amber-700 italic text-[11px]">
+                          + {parsedPreview.warnings.length - 5} more warnings
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Preview Table */}
+                  <div className="border border-slate-200 rounded-xl overflow-hidden max-h-56 overflow-y-auto">
+                    <table className="w-full text-left text-xs border-collapse">
+                      <thead className="bg-slate-100 text-slate-700 font-semibold sticky top-0 border-b border-slate-200">
+                        <tr>
+                          <th className="py-2 px-3">Destination</th>
+                          <th className="py-2 px-3">Hotel Property</th>
+                          <th className="py-2 px-2 text-center">Stars</th>
+                          <th className="py-2 px-3">Room Categories</th>
+                          <th className="py-2 px-3 text-right">Sample Rate</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 text-slate-700">
+                        {parsedPreview.hotels.map((hotel, idx) => (
+                          <tr key={idx} className="hover:bg-slate-50/80">
+                            <td className="py-2 px-3 font-semibold text-emerald-900">
+                              {hotel.destination}
+                            </td>
+                            <td className="py-2 px-3 font-medium">
+                              {hotel.hotel_name}
+                            </td>
+                            <td className="py-2 px-2 text-center">
+                              <span className="inline-flex items-center text-amber-600 font-bold">
+                                {hotel.star_rating}★
+                              </span>
+                            </td>
+                            <td className="py-2 px-3 text-slate-600">
+                              {hotel.rooms.map((r) => r.room_category).join(', ')}
+                            </td>
+                            <td className="py-2 px-3 text-right font-bold text-emerald-800">
+                              ₹{hotel.rooms[0]?.base_b2b_rate?.toLocaleString('en-IN') || 0}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Import Mode Selection */}
+                  <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+                    <span className="text-xs font-bold text-slate-800 block">Select Import Behavior:</span>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                      <label className={`flex items-start gap-2 p-2.5 rounded-lg border cursor-pointer transition-colors ${
+                        importMode === 'merge' ? 'bg-emerald-50 border-emerald-300 text-emerald-950 font-medium' : 'bg-white border-slate-200 text-slate-700'
+                      }`}>
+                        <input
+                          type="radio"
+                          name="importMode"
+                          value="merge"
+                          checked={importMode === 'merge'}
+                          onChange={() => setImportMode('merge')}
+                          className="mt-0.5 text-emerald-800 focus:ring-emerald-700"
+                        />
+                        <div>
+                          <div className="font-bold">Merge & Update (Recommended)</div>
+                          <div className="text-[11px] text-slate-500">
+                            Updates existing property rates and adds new hotels without deleting others.
+                          </div>
+                        </div>
+                      </label>
+
+                      <label className={`flex items-start gap-2 p-2.5 rounded-lg border cursor-pointer transition-colors ${
+                        importMode === 'replace' ? 'bg-amber-50 border-amber-300 text-amber-950 font-medium' : 'bg-white border-slate-200 text-slate-700'
+                      }`}>
+                        <input
+                          type="radio"
+                          name="importMode"
+                          value="replace"
+                          checked={importMode === 'replace'}
+                          onChange={() => setImportMode('replace')}
+                          className="mt-0.5 text-amber-800 focus:ring-amber-700"
+                        />
+                        <div>
+                          <div className="font-bold">Replace Catalog</div>
+                          <div className="text-[11px] text-slate-500">
+                            Replaces the entire active hotel list completely with the file contents.
+                          </div>
+                        </div>
+                      </label>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-6 py-3.5 bg-slate-50 border-t border-slate-200 flex items-center justify-between">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowUploadModal(false);
+                  setParsedPreview(null);
+                  setUploadError(null);
+                }}
+                className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-200 rounded-lg cursor-pointer transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={!parsedPreview || isUploading}
+                onClick={handleCommitImport}
+                className="inline-flex items-center gap-2 px-5 py-2 text-xs font-bold text-white bg-emerald-800 hover:bg-emerald-900 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg shadow-sm cursor-pointer transition-all"
+              >
+                <Check className="w-4 h-4" />
+                <span>Commit & Apply to Catalog</span>
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -12,7 +12,6 @@ import {
   Code, 
   Printer, 
   Share2, 
-  Upload, 
   LogOut, 
   UserCheck,
   Palmtree,
@@ -24,7 +23,6 @@ import {
   BookOpen,
   ArrowRight,
   LayoutGrid,
-  Table,
   Check,
   X,
   Building2
@@ -38,7 +36,7 @@ interface NavbarProps {
   staffUser: StaffUser | null;
   onLogout: () => void;
   onOpenLogin: () => void;
-  onOpenImport: () => void;
+  onOpenImport?: () => void;
   onOpenGoogleSheets?: () => void;
   onPrint: () => void;
   onShareWhatsApp: () => void;
@@ -296,69 +294,6 @@ export const Navbar: React.FC<NavbarProps> = ({
                           <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">Manage hotel properties, room categories, and base B2B contract rates.</p>
                         </div>
                       </button>
-
-                      {/* 2. Import Planner Data */}
-                      <button
-                        type="button"
-                        id="menu-item-import-planner"
-                        onClick={() => {
-                          onOpenImport();
-                          setIsMenuOpen(false);
-                        }}
-                        className="w-full flex items-start gap-3 p-3 rounded-xl text-left text-xs transition-all border border-slate-200/80 hover:border-emerald-300 bg-white hover:bg-emerald-50/60 text-slate-700 cursor-pointer shadow-2xs hover:shadow-xs group"
-                      >
-                        <div className="p-2.5 rounded-xl bg-emerald-100/80 text-emerald-800 shrink-0 mt-0.5 shadow-2xs group-hover:scale-105 transition-transform">
-                          <Upload className="w-4 h-4" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between">
-                            <span className="font-extrabold text-slate-900 text-xs group-hover:text-emerald-900 transition-colors">Import Planner Data</span>
-                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold">Paste / File</span>
-                          </div>
-                          <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">Import booking details, customer inputs, or restore sample data.</p>
-                        </div>
-                      </button>
-
-                      {/* 3. Google Sheet Voucher Database */}
-                      <button
-                        type="button"
-                        id="menu-item-google-sheets"
-                        onClick={() => {
-                          onOpenGoogleSheets?.();
-                          setIsMenuOpen(false);
-                        }}
-                        className="w-full flex items-start gap-3 p-3 rounded-xl text-left text-xs transition-all border border-teal-200/80 hover:border-teal-300 bg-teal-50/40 hover:bg-teal-50/80 text-slate-700 cursor-pointer shadow-2xs hover:shadow-xs group"
-                      >
-                        <div className="p-2.5 rounded-xl bg-teal-600 text-white shrink-0 mt-0.5 shadow-2xs group-hover:scale-105 transition-transform">
-                          <Table className="w-4 h-4" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between">
-                            <span className="font-extrabold text-slate-900 text-xs group-hover:text-teal-950 transition-colors">Voucher Database</span>
-                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-teal-100 text-teal-800 font-bold border border-teal-200">Google Sheet</span>
-                          </div>
-                          <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">Sync voucher serial numbers & log generated itineraries in real time.</p>
-                        </div>
-                      </button>
-
-                      {/* 4. Switch to Workspace Hub */}
-                      <a
-                        href="https://travelcaretours.in/invoice/"
-                        target="_self"
-                        title="Switch to Workspace Hub"
-                        className="w-full flex items-start gap-3 p-3 rounded-xl text-left text-xs transition-all border border-slate-700 bg-gradient-to-r from-slate-900 to-slate-800 text-slate-100 hover:from-slate-850 hover:to-slate-750 shadow-sm cursor-pointer group"
-                      >
-                        <div className="p-2.5 rounded-xl bg-slate-800 text-blue-400 shrink-0 mt-0.5 shadow-2xs group-hover:scale-105 transition-transform border border-slate-700">
-                          <LayoutGrid className="w-4 h-4" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between">
-                            <span className="font-extrabold text-white text-xs">Workspace Hub</span>
-                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-900/80 text-blue-300 font-bold border border-blue-700">Billing Portal</span>
-                          </div>
-                          <p className="text-[11px] text-slate-300 mt-0.5 leading-snug">Switch back to Travel Care Tours billing and operations portal.</p>
-                        </div>
-                      </a>
                     </div>
                   </div>
                 </>
@@ -529,67 +464,6 @@ export const Navbar: React.FC<NavbarProps> = ({
                     <p className="text-xs text-slate-500 mt-0.5">Manage hotel properties, room categories, and base B2B contract rates.</p>
                   </div>
                 </button>
-
-                {/* 3. Import Planner Data */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    onOpenImport();
-                    setIsMenuOpen(false);
-                  }}
-                  className="w-full flex items-start gap-3 p-3 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-left transition-all cursor-pointer"
-                >
-                  <div className="p-2 rounded-lg bg-emerald-100 text-emerald-800 shrink-0 mt-0.5">
-                    <Upload className="w-5 h-5" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between">
-                      <span className="font-bold text-slate-900 text-sm">Import Planner Data</span>
-                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold">Paste / File</span>
-                    </div>
-                    <p className="text-xs text-slate-500 mt-0.5">Paste WhatsApp itinerary or raw text to auto-populate the trip.</p>
-                  </div>
-                </button>
-
-                {/* 3. Google Sheet Voucher Database */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    onOpenGoogleSheets?.();
-                    setIsMenuOpen(false);
-                  }}
-                  className="w-full flex items-start gap-3 p-3 rounded-xl border border-emerald-200 bg-emerald-50/40 hover:bg-emerald-50 text-left transition-all cursor-pointer"
-                >
-                  <div className="p-2 rounded-lg bg-emerald-600 text-white shrink-0 mt-0.5 shadow-2xs">
-                    <Table className="w-5 h-5" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between">
-                      <span className="font-bold text-slate-900 text-sm">Voucher Database</span>
-                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold border border-emerald-200">Google Sheet</span>
-                    </div>
-                    <p className="text-xs text-slate-500 mt-0.5">Sync voucher numbers & view auto-logged booking rows in Google Sheets.</p>
-                  </div>
-                </button>
-
-                {/* 4. Switch to Workspace Hub */}
-                <a
-                  href="https://travelcaretours.in/invoice/"
-                  target="_self"
-                  title="Switch to Workspace Hub"
-                  className="w-full flex items-start gap-3 p-3 rounded-xl border border-slate-700 bg-slate-900 hover:bg-slate-800 text-slate-100 text-left transition-all cursor-pointer shadow-xs"
-                >
-                  <div className="p-2 rounded-lg bg-slate-800 text-blue-400 shrink-0 mt-0.5 shadow-2xs">
-                    <LayoutGrid className="w-5 h-5" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between">
-                      <span className="font-bold text-white text-sm">Workspace Hub</span>
-                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-900/60 text-blue-300 font-bold border border-blue-700">Billing Portal</span>
-                    </div>
-                    <p className="text-xs text-slate-400 mt-0.5">Switch back to Travel Care Tours billing and operations portal.</p>
-                  </div>
-                </a>
               </div>
 
               {/* Close Button */}
