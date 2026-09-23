@@ -776,7 +776,7 @@ ${trip.days.map((d) => `*Day ${d.dayNumber} (${d.destination}):* ${d.activities.
             </div>
 
             {/* Top Toolbar: Logical Grouping (View Controls Left, Export Actions Right) */}
-            <div className="bg-white rounded-2xl border border-slate-200 p-3 sm:p-4 shadow-xs flex flex-wrap items-center justify-between gap-3 sm:gap-4 no-print sticky top-20 z-30 backdrop-blur-md bg-white/95">
+            <div className="your-header-container pdf-preview-header pdf-template-header bg-white rounded-2xl border border-slate-200 p-3 sm:p-4 shadow-xs flex flex-wrap items-center justify-between gap-3 sm:gap-4 no-print md:sticky md:top-20 md:z-30 backdrop-blur-md bg-white/95">
               {/* LEFT GROUP: View Controls ("how I see it") */}
               <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
                 <div className="flex items-center gap-2 pr-1 sm:pr-2 border-r border-slate-200">
