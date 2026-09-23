@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
   TripDetails, 
   AccommodationItem 
@@ -38,7 +38,8 @@ import {
   Utensils,
   Info,
   Table,
-  CreditCard
+  CreditCard,
+  AlertTriangle
 } from 'lucide-react';
 import { 
   DEFAULT_KERALA_DESTINATIONS,
@@ -217,6 +218,17 @@ export const WhatsappLeadsView: React.FC<WhatsappLeadsViewProps> = ({
   const [agentPhoneInput, setAgentPhoneInput] = useState('');
   const [lastRefreshedTime, setLastRefreshedTime] = useState<string>('Live');
   const [isRefreshing, setIsRefreshing] = useState(false);
+
+  // Auto-Parse Highlight & Missing Info Warning States
+  const [autoHighlightedFields, setAutoHighlightedFields] = useState<string[]>([]);
+  const [parserMissingAlerts, setParserMissingAlerts] = useState<string[]>([]);
+  const highlightTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (highlightTimeoutRef.current) clearTimeout(highlightTimeoutRef.current);
+    };
+  }, []);
 
   // Google Sheet Sync & Storage state
   const [isSyncingSheet, setIsSyncingSheet] = useState(false);
@@ -777,13 +789,14 @@ export const WhatsappLeadsView: React.FC<WhatsappLeadsViewProps> = ({
 
     // Check for explicit dates e.g. "15 Oct 2026", "20/10/2026", "travel date: 22nd Nov"
     const dateRangeMatch = text.match(/(?:from|travel\s*dates?|dates?)\s*[:\-]?\s*([0-9]{1,2}(?:st|nd|rd|th)?\s+[A-Za-z]+(?:\s+202[5-9])?|[0-9]{1,2}[\/\-\.][0-9]{1,2}[\/\-\.](?:202[5-9]|2[5-9]))\s*(?:to|till|\-)\s*([0-9]{1,2}(?:st|nd|rd|th)?\s+[A-Za-z]+(?:\s+202[5-9])?|[0-9]{1,2}[\/\-\.][0-9]{1,2}[\/\-\.](?:202[5-9]|2[5-9]))/i);
+    let singleDateMatch: RegExpMatchArray | null = null;
     if (dateRangeMatch) {
       const pParsed = parseFlexible(dateRangeMatch[1]);
       const dParsed = parseFlexible(dateRangeMatch[2]);
       if (pParsed) detectedPickupDate = formatDisplayDate(pParsed);
       if (dParsed) detectedDropoffDate = formatDisplayDate(dParsed);
     } else {
-      const singleDateMatch = text.match(/(?:travel\s*date|date|start|pickup|arrival|on)\s*[:\-]?\s*([0-9]{1,2}(?:st|nd|rd|th)?\s+[A-Za-z]+(?:\s+202[5-9])?|[0-9]{1,2}[\/\-\.][0-9]{1,2}[\/\-\.](?:202[5-9]|2[5-9]))/i);
+      singleDateMatch = text.match(/(?:travel\s*date|date|start|pickup|arrival|on)\s*[:\-]?\s*([0-9]{1,2}(?:st|nd|rd|th)?\s+[A-Za-z]+(?:\s+202[5-9])?|[0-9]{1,2}[\/\-\.][0-9]{1,2}[\/\-\.](?:202[5-9]|2[5-9]))/i);
       if (singleDateMatch) {
         const pParsed = parseFlexible(singleDateMatch[1]);
         if (pParsed) detectedPickupDate = formatDisplayDate(pParsed);
@@ -854,6 +867,34 @@ export const WhatsappLeadsView: React.FC<WhatsappLeadsViewProps> = ({
 
     // Requirement 1: DO NOT clear pasteInput! Keep it in the parser until quote is completed
     setShowLeadReferenceBox(true);
+
+    // Track detected fields for visual success highlighting
+    const detected: string[] = [];
+    if (dateRangeMatch || singleDateMatch) detected.push('dates');
+    if (adultsMatch) detected.push('adults');
+    if (childMatch || ageMatch) detected.push('children');
+    if (/suv|innova|ertiga|crysta|scorpio|xuv|traveller|tempo|12\s*seat|van|bus|minibus|sedan|dzire|aspire|etios|cab/i.test(text)) detected.push('vehicle');
+    if (detectedStops.length > 0) detected.push('destinations');
+    if (/map|dinner|ap|all meals|lunch.*dinner|ep|room only|cp|breakfast/i.test(text)) detected.push('mealPlan');
+
+    setAutoHighlightedFields(detected);
+    if (highlightTimeoutRef.current) clearTimeout(highlightTimeoutRef.current);
+    highlightTimeoutRef.current = setTimeout(() => {
+      setAutoHighlightedFields([]);
+    }, 3500);
+
+    // Track missing crucial info warnings
+    const missing: string[] = [];
+    if (!dateRangeMatch && !singleDateMatch) {
+      missing.push("Could not detect travel dates from the message (defaulted to today's date).");
+    }
+    if (!adultsMatch) {
+      missing.push("Could not detect number of guests/pax (defaulted to 2 adults).");
+    }
+    if (detectedStops.length === 0) {
+      missing.push("Could not detect destination stops or nights (defaulted to current schedule).");
+    }
+    setParserMissingAlerts(missing);
   };
 
   // Requirement 9: Live WhatsApp formatted quote text (Reactively updates on any change)
@@ -1111,6 +1152,34 @@ ${hotelLines}
         </div>
       )}
 
+      {/* Missing Info Alerts from Auto-Parse */}
+      {parserMissingAlerts.length > 0 && (
+        <div className="bg-amber-50/95 border border-amber-300 rounded-xl p-3 sm:p-3.5 space-y-1.5 shadow-2xs animate-in fade-in slide-in-from-top-2 duration-200">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-xs sm:text-sm font-black text-amber-950">
+              <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+              <span>Inquiry Parsing Attention Needed ({parserMissingAlerts.length}):</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setParserMissingAlerts([])}
+              className="text-amber-800 hover:text-amber-950 text-xs font-bold px-2 py-0.5 rounded-md hover:bg-amber-100 transition-colors cursor-pointer"
+              title="Dismiss warning"
+            >
+              ✕ Dismiss
+            </button>
+          </div>
+          <div className="space-y-1 pl-6 text-xs text-amber-900 font-medium">
+            {parserMissingAlerts.map((msg, i) => (
+              <div key={i} className="flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
+                <span>{msg}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* 2. Top Metadata Row: Sequential Quote Code, Guest Name, Contact, Adults, Children, Vehicle */}
       <div className="bg-white rounded-xl sm:rounded-2xl border border-slate-200 p-3.5 sm:p-6 shadow-xs space-y-3.5 sm:space-y-5">
         <div className="flex items-center justify-between border-b border-slate-100 pb-3 flex-wrap gap-2.5 sm:gap-3">
@@ -1224,8 +1293,15 @@ ${hotelLines}
           </div>
 
           {/* Vehicle Type (Brought before Adults count, with 'Sedan • SUV • 12-Seat' removed) */}
-          <div className="sm:col-span-6 lg:col-span-3 space-y-1.5">
-            <label className="text-xs sm:text-sm font-bold text-slate-700 block">Vehicle Type</label>
+          <div className={`sm:col-span-6 lg:col-span-3 space-y-1.5 p-1 rounded-xl transition-all duration-700 ${
+            autoHighlightedFields.includes('vehicle') ? 'bg-emerald-50 ring-2 ring-emerald-500/70 shadow-xs' : ''
+          }`}>
+            <div className="flex items-center justify-between">
+              <label className="text-xs sm:text-sm font-bold text-slate-700 block">Vehicle Type</label>
+              {autoHighlightedFields.includes('vehicle') && (
+                <span className="text-[10px] font-extrabold text-emerald-700 animate-pulse">✓ Auto-filled</span>
+              )}
+            </div>
             <div className="relative">
               <Car className="w-4 h-4 sm:w-5 sm:h-5 text-slate-400 absolute left-3.5 top-3.5 pointer-events-none" />
               <CustomSelect
@@ -1246,8 +1322,15 @@ ${hotelLines}
           {/* Adults Count & Child Count - 1x1 Side-by-Side Grid */}
           <div className="sm:col-span-6 lg:col-span-3 grid grid-cols-2 gap-2.5 sm:gap-3">
             {/* Adults Count */}
-            <div className="space-y-1.5">
-              <label className="text-xs sm:text-sm font-bold text-slate-700 block truncate">Adults Count</label>
+            <div className={`space-y-1.5 p-1 rounded-xl transition-all duration-700 ${
+              autoHighlightedFields.includes('adults') ? 'bg-emerald-50 ring-2 ring-emerald-500/70 shadow-xs' : ''
+            }`}>
+              <div className="flex items-center justify-between">
+                <label className="text-xs sm:text-sm font-bold text-slate-700 block truncate">Adults Count</label>
+                {autoHighlightedFields.includes('adults') && (
+                  <span className="text-[10px] font-extrabold text-emerald-700 animate-pulse">✓ Auto</span>
+                )}
+              </div>
               <div className="flex items-center h-12 bg-slate-50/70 border border-slate-300 rounded-xl overflow-hidden shadow-2xs">
                 <button
                   type="button"
@@ -1277,8 +1360,15 @@ ${hotelLines}
             </div>
 
             {/* Child Count */}
-            <div className="space-y-1.5">
-              <label className="text-xs sm:text-sm font-bold text-slate-700 block truncate">Child Count</label>
+            <div className={`space-y-1.5 p-1 rounded-xl transition-all duration-700 ${
+              autoHighlightedFields.includes('children') ? 'bg-emerald-50 ring-2 ring-emerald-500/70 shadow-xs' : ''
+            }`}>
+              <div className="flex items-center justify-between">
+                <label className="text-xs sm:text-sm font-bold text-slate-700 block truncate">Child Count</label>
+                {autoHighlightedFields.includes('children') && (
+                  <span className="text-[10px] font-extrabold text-emerald-700 animate-pulse">✓ Auto</span>
+                )}
+              </div>
               <div className="flex items-center h-12 bg-slate-50/70 border border-slate-300 rounded-xl overflow-hidden shadow-2xs">
                 <button
                   type="button"
@@ -1334,15 +1424,24 @@ ${hotelLines}
         {/* Requirement 3 & 4: Pick-up & Drop-off Dates, Locations & Flight Times (Same UI as V1) */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 sm:gap-4 pt-1 sm:pt-2">
           {/* Pickup Card */}
-          <div className="border border-emerald-200 bg-emerald-50/40 rounded-xl sm:rounded-2xl p-3.5 sm:p-5 space-y-3">
+          <div className={`border rounded-xl sm:rounded-2xl p-3.5 sm:p-5 space-y-3 transition-all duration-700 ${
+            autoHighlightedFields.includes('dates')
+              ? 'bg-emerald-100/70 border-emerald-400 ring-2 ring-emerald-500/70 shadow-md'
+              : 'border-emerald-200 bg-emerald-50/40'
+          }`}>
             <div className="flex items-center justify-between border-b border-emerald-200/70 pb-2.5">
               <div className="flex items-center gap-2 text-xs sm:text-sm font-bold text-emerald-950 uppercase tracking-wide">
                 <MapPin className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-700" />
                 <span>Pickup (Arrival Details)</span>
               </div>
-              <span className="text-[10px] sm:text-xs font-bold text-emerald-800 bg-emerald-100 px-2.5 py-1 rounded-md">
-                Day 1 Start
-              </span>
+              <div className="flex items-center gap-1.5">
+                {autoHighlightedFields.includes('dates') && (
+                  <span className="text-[10px] font-extrabold text-emerald-800 animate-pulse">✓ Auto-filled</span>
+                )}
+                <span className="text-[10px] sm:text-xs font-bold text-emerald-800 bg-emerald-100 px-2.5 py-1 rounded-md">
+                  Day 1 Start
+                </span>
+              </div>
             </div>
 
             {/* Interactive Date Picker for Pickup Date */}
@@ -1421,15 +1520,24 @@ ${hotelLines}
           </div>
 
           {/* Drop-off Card */}
-          <div className="border border-rose-200 bg-rose-50/40 rounded-xl sm:rounded-2xl p-3.5 sm:p-5 space-y-3">
+          <div className={`border rounded-xl sm:rounded-2xl p-3.5 sm:p-5 space-y-3 transition-all duration-700 ${
+            autoHighlightedFields.includes('dates')
+              ? 'bg-rose-100/70 border-rose-400 ring-2 ring-emerald-500/70 shadow-md'
+              : 'border-rose-200 bg-rose-50/40'
+          }`}>
             <div className="flex items-center justify-between border-b border-rose-200/70 pb-2.5">
               <div className="flex items-center gap-2 text-xs sm:text-sm font-bold text-rose-950 uppercase tracking-wide">
                 <Navigation className="w-4 h-4 sm:w-5 sm:h-5 text-rose-700" />
                 <span>Drop-off (Departure Details)</span>
               </div>
-              <span className="text-[10px] sm:text-xs font-bold text-rose-800 bg-rose-100 px-2.5 py-1 rounded-md">
-                Day {trip.durationDays} End
-              </span>
+              <div className="flex items-center gap-1.5">
+                {autoHighlightedFields.includes('dates') && (
+                  <span className="text-[10px] font-extrabold text-emerald-800 animate-pulse">✓ Auto-calculated</span>
+                )}
+                <span className="text-[10px] sm:text-xs font-bold text-rose-800 bg-rose-100 px-2.5 py-1 rounded-md">
+                  Day {trip.durationDays} End
+                </span>
+              </div>
             </div>
 
             {/* Interactive Date Picker for Drop-off Date */}
@@ -1700,7 +1808,11 @@ ${hotelLines}
         </div>
 
         {/* Table View (Desktop >= 1024px) - Spacious, Enlarged Layout */}
-        <div className="hidden lg:block overflow-x-auto rounded-2xl border border-slate-200 shadow-xs bg-white">
+        <div className={`hidden lg:block overflow-x-auto rounded-2xl border shadow-xs bg-white transition-all duration-700 ${
+          autoHighlightedFields.includes('destinations')
+            ? 'border-emerald-500 ring-2 ring-emerald-400/50 bg-emerald-50/20'
+            : 'border-slate-200'
+        }`}>
           <table className="w-full text-left text-sm border-collapse">
             <thead>
               <tr className="bg-slate-50 text-slate-800 font-extrabold border-b border-slate-200 text-xs uppercase tracking-wider">
@@ -1898,7 +2010,11 @@ ${hotelLines}
         </div>
 
         {/* Mobile & Tablet Screen-Matched Card View (< 1024px) */}
-        <div className="lg:hidden space-y-2.5 sm:space-y-3">
+        <div className={`lg:hidden space-y-2.5 sm:space-y-3 transition-all duration-700 ${
+          autoHighlightedFields.includes('destinations')
+            ? 'p-1.5 rounded-2xl ring-2 ring-emerald-400/50 bg-emerald-50/20'
+            : ''
+        }`}>
           {trip.accommodations.map((acc, index) => {
             const suggestions = HOTEL_SUGGESTIONS[acc.destination] || [];
             const isFirst = index === 0;
@@ -2076,12 +2192,15 @@ ${hotelLines}
           })}
 
           {/* Mobile Total Hotel Cost Card */}
-          <div className="bg-emerald-900 text-white rounded-xl sm:rounded-2xl p-3.5 sm:p-4 flex items-center justify-between shadow-xs">
+          <div className="bg-rose-950 text-white border border-rose-800/80 rounded-xl sm:rounded-2xl p-3.5 sm:p-4 flex items-center justify-between shadow-xs">
             <div>
-              <span className="text-xs font-bold text-emerald-200 block">Total Hotel B2B Cost</span>
-              <span className="text-[10px] sm:text-[11px] text-emerald-300">({trip.durationNights}N across {trip.accommodations.length} stops)</span>
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs font-bold text-rose-200 block">Total Hotel Net Cost</span>
+                <span className="text-[10px] font-bold px-1.5 py-0.5 bg-rose-900 text-rose-300 rounded border border-rose-700">B2B Net</span>
+              </div>
+              <span className="text-[10px] sm:text-[11px] text-rose-300/80">({trip.durationNights}N across {trip.accommodations.length} stops)</span>
             </div>
-            <span className="text-base sm:text-lg font-black text-white">
+            <span className="text-base sm:text-lg font-black text-rose-100">
               ₹ {totalHotelB2BCost.toLocaleString('en-IN')}
             </span>
           </div>
@@ -2109,38 +2228,40 @@ ${hotelLines}
             </div>
 
             <div className="space-y-3 sm:space-y-3.5 text-xs sm:text-sm">
-              {/* Row 1: Base Costs (Hotels + Vehicle) side-by-side */}
+              {/* Row 1: Base Costs (Hotels + Vehicle) side-by-side - Color-coded in soft rose/red for Net Costs */}
               <div className="space-y-2">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                  {/* Total Hotel Cost Display */}
-                  <div className="p-3.5 sm:p-4 rounded-xl bg-slate-50 border border-slate-200/90 flex items-center justify-between min-h-[84px] sm:min-h-[88px] transition-all hover:bg-slate-50">
+                  {/* Total Hotel Cost Display - Soft Rose Net Outflow */}
+                  <div className="p-3.5 sm:p-4 rounded-xl bg-rose-50/70 border border-rose-200/90 flex items-center justify-between min-h-[84px] sm:min-h-[88px] transition-all shadow-2xs">
                     <div className="space-y-1">
-                      <div className="flex items-center gap-1.5 text-xs text-slate-700 font-bold">
-                        <Hotel className="w-4 h-4 text-emerald-700 shrink-0" />
+                      <div className="flex items-center gap-1.5 text-xs text-rose-950 font-black">
+                        <Hotel className="w-4 h-4 text-rose-600 shrink-0" />
                         <span>Hotel Net Cost</span>
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 bg-rose-100/90 text-rose-800 rounded border border-rose-200">B2B Net</span>
                       </div>
-                      <div className="text-[11px] font-semibold text-slate-500 pl-5.5">
+                      <div className="text-[11px] font-semibold text-rose-700/80 pl-5.5">
                         {trip.durationNights}N ({trip.accommodations.length} stops)
                       </div>
                     </div>
-                    <div className="font-black text-slate-900 text-base sm:text-lg tracking-tight">
+                    <div className="font-black text-rose-950 text-base sm:text-lg tracking-tight">
                       ₹ {totalHotelB2BCost.toLocaleString('en-IN')}
                     </div>
                   </div>
 
-                  {/* Vehicle Charge */}
-                  <div className="p-3.5 sm:p-4 rounded-xl bg-slate-50 border border-slate-200/90 flex items-center justify-between min-h-[84px] sm:min-h-[88px] transition-all hover:bg-slate-50">
+                  {/* Vehicle Charge - Soft Rose Net Outflow */}
+                  <div className="p-3.5 sm:p-4 rounded-xl bg-rose-50/70 border border-rose-200/90 flex items-center justify-between min-h-[84px] sm:min-h-[88px] transition-all shadow-2xs">
                     <div className="space-y-1">
-                      <label className="flex items-center gap-1.5 text-xs text-slate-700 font-bold cursor-pointer">
-                        <Car className="w-4 h-4 text-[#0B2545] shrink-0" />
-                        <span>Vehicle Charge:</span>
+                      <label className="flex items-center gap-1.5 text-xs text-rose-950 font-black cursor-pointer">
+                        <Car className="w-4 h-4 text-rose-600 shrink-0" />
+                        <span>Cab Net Cost:</span>
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 bg-rose-100/90 text-rose-800 rounded border border-rose-200">B2B Net</span>
                       </label>
-                      <div className="text-[11px] font-semibold text-slate-500 pl-5.5 truncate max-w-[130px]" title={trip.vehicleType}>
+                      <div className="text-[11px] font-semibold text-rose-700/80 pl-5.5 truncate max-w-[130px]" title={trip.vehicleType}>
                         {trip.vehicleType}
                       </div>
                     </div>
                     <div className="flex items-center gap-1.5">
-                      <span className="font-bold text-slate-600 text-sm">₹</span>
+                      <span className="font-bold text-rose-800 text-sm">₹</span>
                       <input
                         type="number"
                         step={100}
@@ -2151,16 +2272,19 @@ ${hotelLines}
                           syncPricingToTrip(val, marginType, marginPercent, marginCustomAmount, adjustmentAmount);
                         }}
                         placeholder="12000"
-                        className="w-24 sm:w-28 h-9 sm:h-10 bg-white border border-slate-300 rounded-lg px-2.5 text-right font-black text-slate-900 text-sm focus:ring-2 focus:ring-[#0B2545] focus:outline-hidden shadow-2xs"
+                        className="w-24 sm:w-28 h-9 sm:h-10 bg-white border border-rose-300 rounded-lg px-2.5 text-right font-black text-rose-950 text-sm focus:ring-2 focus:ring-rose-500 focus:outline-hidden shadow-2xs"
                       />
                     </div>
                   </div>
                 </div>
 
-                {/* Combined Base Cost Sub-strip */}
-                <div className="flex items-center justify-between px-3.5 py-2.5 rounded-xl bg-slate-100/80 text-xs font-semibold text-slate-600 border border-slate-200/60 min-h-[42px]">
-                  <span>Combined Base Cost (Hotel + Cab):</span>
-                  <span className="font-black text-slate-800 text-xs sm:text-sm">₹ {baseCost.toLocaleString('en-IN')}</span>
+                {/* Combined Base Cost Sub-strip - Distinct Soft Red Background */}
+                <div className="flex items-center justify-between px-3.5 py-2.5 rounded-xl bg-rose-100/80 border border-rose-200 text-xs font-semibold text-rose-900 min-h-[42px] shadow-2xs">
+                  <span className="flex items-center gap-1.5 font-bold text-rose-950">
+                    <span className="w-2 h-2 rounded-full bg-rose-500 shrink-0"></span>
+                    <span>Combined Base Cost (Hotel + Cab Net Outflow):</span>
+                  </span>
+                  <span className="font-black text-rose-950 text-xs sm:text-sm">₹ {baseCost.toLocaleString('en-IN')}</span>
                 </div>
               </div>
 
@@ -2429,24 +2553,33 @@ ${hotelLines}
               </span>
             </div>
 
-            {/* Prominent Price Display */}
-            <div className="space-y-1">
-              <div className="text-[10px] sm:text-[11px] text-slate-300 font-medium uppercase tracking-wider">
-                Final Selling Quotation to Agent:
+            {/* Prominent Confident Selling Price Display Card */}
+            <div className="p-3.5 sm:p-4 rounded-xl sm:rounded-2xl bg-gradient-to-r from-emerald-950 via-emerald-900 to-teal-950 border-2 border-emerald-400 shadow-lg space-y-1.5">
+              <div className="flex items-center justify-between flex-wrap gap-1">
+                <span className="text-[10px] sm:text-[11px] text-emerald-300 font-black uppercase tracking-wider flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                  FINAL SELLING QUOTATION TO AGENT:
+                </span>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-400 text-emerald-950 shadow-xs">
+                  Quote to Agent
+                </span>
               </div>
-              <div className="text-2xl sm:text-3xl lg:text-4xl font-black text-white tracking-tight">
+              <div className="text-2xl sm:text-3xl lg:text-4xl font-black text-white tracking-tight drop-shadow-xs">
                 ₹ {finalTotalPackageCost.toLocaleString('en-IN')}/-
               </div>
+              <p className="text-[10px] sm:text-[11px] text-emerald-200/80 font-medium">
+                Official selling rate for client quotation (includes margin)
+              </p>
             </div>
 
             {/* Financial Breakdown Matrix */}
             <div className="grid grid-cols-2 gap-2 text-xs pt-1">
-              <div className="bg-white/10 rounded-xl p-2 sm:p-2.5 border border-white/10">
-                <span className="text-slate-400 block text-[10px]">Base Net Cost:</span>
-                <span className="font-bold text-white text-xs sm:text-sm">
+              <div className="bg-rose-950/40 rounded-xl p-2 sm:p-2.5 border border-rose-500/40">
+                <span className="text-rose-300 block text-[10px] font-bold">Base Net Outflow:</span>
+                <span className="font-black text-rose-200 text-xs sm:text-sm">
                   ₹ {baseCost.toLocaleString('en-IN')}
                 </span>
-                <span className="text-[10px] text-slate-400 block truncate">
+                <span className="text-[10px] text-rose-300/80 block truncate font-medium">
                   Hotel ₹{totalHotelB2BCost.toLocaleString('en-IN')} + Cab ₹{vehicleCost.toLocaleString('en-IN')}
                 </span>
               </div>

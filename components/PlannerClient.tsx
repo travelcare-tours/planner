@@ -775,19 +775,17 @@ ${trip.days.map((d) => `*Day ${d.dayNumber} (${d.destination}):* ${d.activities.
               ))}
             </div>
 
-            {/* Top Toolbar */}
-            <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-xs flex flex-wrap items-center justify-between gap-4 no-print sticky top-20 z-30 backdrop-blur-md bg-white/95">
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-900 flex items-center justify-center">
-                  <Eye className="w-5 h-5 text-emerald-800" />
+            {/* Top Toolbar: Logical Grouping (View Controls Left, Export Actions Right) */}
+            <div className="bg-white rounded-2xl border border-slate-200 p-3 sm:p-4 shadow-xs flex flex-wrap items-center justify-between gap-3 sm:gap-4 no-print sticky top-20 z-30 backdrop-blur-md bg-white/95">
+              {/* LEFT GROUP: View Controls ("how I see it") */}
+              <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+                <div className="flex items-center gap-2 pr-1 sm:pr-2 border-r border-slate-200">
+                  <div className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-900 flex items-center justify-center shrink-0">
+                    <Eye className="w-4 h-4 text-emerald-800" />
+                  </div>
+                  <span className="font-extrabold text-xs sm:text-sm text-slate-900 hidden md:inline">Preview</span>
                 </div>
-                <div>
-                  <h3 className="font-bold text-sm text-slate-900">Itinerary Preview</h3>
-                </div>
-              </div>
 
-              {/* Action Buttons & Responsive Zoom Toolbar */}
-              <div className="flex flex-wrap items-center gap-2.5 w-full sm:w-auto justify-between sm:justify-end">
                 {/* Modern Zoom Controls: Fit Width, Fit Height, -, %, + */}
                 <div className="flex items-center bg-slate-100 rounded-xl p-1 border border-slate-200 shadow-2xs gap-1">
                   <button
@@ -815,7 +813,7 @@ ${trip.days.map((d) => `*Day ${d.dayNumber} (${d.destination}):* ${d.activities.
                   >
                     <ZoomOut className="w-3.5 h-3.5" />
                   </button>
-                  <span className="px-1.5 font-mono text-[11px] text-slate-800 font-extrabold select-none min-w-[40px] text-center">
+                  <span className="px-1.5 font-mono text-[11px] text-slate-800 font-extrabold select-none min-w-[36px] text-center">
                     {pdfZoom}%
                   </span>
                   <button
@@ -828,80 +826,82 @@ ${trip.days.map((d) => `*Day ${d.dayNumber} (${d.destination}):* ${d.activities.
                   </button>
                 </div>
 
-                <div className="flex items-center gap-2">
-                  <button
-                    id="btn-sync-pdf-data"
-                    type="button"
-                    onClick={handleSyncPdfData}
-                    disabled={isSyncingPdf}
-                    className="p-2 text-emerald-800 bg-emerald-50 hover:bg-emerald-100 active:bg-emerald-200 border border-emerald-200 rounded-xl transition-all cursor-pointer shadow-2xs"
-                    title="Sync & Refresh PDF Data"
-                  >
-                    <RefreshCw className={`w-3.5 h-3.5 text-emerald-800 ${isSyncingPdf ? 'animate-spin' : ''}`} />
-                  </button>
+                <button
+                  id="btn-sync-pdf-data"
+                  type="button"
+                  onClick={handleSyncPdfData}
+                  disabled={isSyncingPdf}
+                  className="p-2 text-slate-600 hover:text-emerald-800 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl transition-all cursor-pointer shadow-2xs"
+                  title="Sync & Refresh PDF Data"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${isSyncingPdf ? 'animate-spin text-emerald-700' : 'text-slate-600'}`} />
+                </button>
+              </div>
 
-                  <button
-                    id="btn-preview-whatsapp"
-                    type="button"
-                    onClick={() => setShowWhatsAppModal(true)}
-                    className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-xl transition-colors cursor-pointer"
-                  >
-                    <Share2 className="w-3.5 h-3.5" />
-                    <span className="hidden sm:inline">WhatsApp</span>
-                  </button>
+              {/* RIGHT GROUP: Export & Action Controls ("what I do with it") */}
+              <div className="flex items-center gap-2 sm:gap-2.5 ml-auto">
+                {/* Secondary Action: Save to Sheet (Outlined / lighter button without text) */}
+                <button
+                  id="btn-preview-save-sheet"
+                  type="button"
+                  onClick={handleSaveToGoogleSheetFromPreview}
+                  disabled={isSavingSheet}
+                  className="p-2 sm:p-2.5 text-slate-600 hover:text-emerald-900 bg-white hover:bg-slate-50 border border-slate-300 rounded-xl transition-all cursor-pointer shadow-2xs disabled:opacity-50"
+                  title={previewSaveStatus ? `Sheet: ${previewSaveStatus}` : "Save confirmed voucher to Google Sheet database"}
+                >
+                  <Database className={`w-4 h-4 text-emerald-700 ${isSavingSheet ? 'animate-pulse' : ''}`} />
+                </button>
 
-                  {/* Manual Save to Google Sheet upon final confirmation */}
-                  <button
-                    id="btn-preview-save-sheet"
-                    type="button"
-                    onClick={handleSaveToGoogleSheetFromPreview}
-                    disabled={isSavingSheet}
-                    className="flex items-center gap-1.5 px-2.5 sm:px-3 py-2 text-xs font-bold text-emerald-950 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 rounded-xl transition-colors cursor-pointer shadow-2xs disabled:opacity-50"
-                    title="Save final confirmed voucher to Google Sheet database"
-                  >
-                    <Database className={`w-3.5 h-3.5 text-emerald-700 ${isSavingSheet ? 'animate-pulse' : ''}`} />
-                    <span className="hidden sm:inline">{previewSaveStatus || 'Save to Sheet'}</span>
-                  </button>
+                {/* Secondary Action: Print (Outlined / lighter button without text) */}
+                <button
+                  id="btn-print-native-pdf"
+                  type="button"
+                  onClick={triggerNativePrint}
+                  className="p-2 sm:p-2.5 text-slate-600 hover:text-slate-900 bg-white hover:bg-slate-50 border border-slate-300 rounded-xl transition-all cursor-pointer shadow-2xs"
+                  title="Print Document or Save as PDF"
+                >
+                  <Printer className="w-4 h-4 text-slate-700" />
+                </button>
 
-                  <button
-                    id="btn-download-pdf-file"
-                    type="button"
-                    onClick={() => {
-                      downloadPdfFile().catch((err) => {
-                        console.error('PDF download failed:', err);
-                      });
-                    }}
-                    disabled={isExportingPdf}
-                    className="flex items-center gap-1.5 px-3.5 sm:px-4 py-2 text-xs font-bold text-emerald-950 bg-emerald-100 hover:bg-emerald-200 border border-emerald-300 rounded-xl transition-colors cursor-pointer shadow-2xs"
-                    title="Download PDF File"
-                  >
-                    {isExportingPdf ? (
-                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                    ) : (
-                      <Download className="w-3.5 h-3.5 text-emerald-800" />
-                    )}
-                    <span>{isExportingPdf ? 'Exporting...' : 'Download PDF'}</span>
-                  </button>
+                {/* Secondary Action: WhatsApp (Outlined emerald button) */}
+                <button
+                  id="btn-preview-whatsapp"
+                  type="button"
+                  onClick={() => setShowWhatsAppModal(true)}
+                  className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-emerald-900 bg-emerald-50/70 hover:bg-emerald-100 border border-emerald-300 rounded-xl transition-colors cursor-pointer shadow-2xs"
+                  title="Share Itinerary on WhatsApp"
+                >
+                  <Share2 className="w-3.5 h-3.5 text-emerald-700" />
+                  <span className="hidden sm:inline">WhatsApp</span>
+                </button>
 
-                  <button
-                    id="btn-print-native-pdf"
-                    type="button"
-                    onClick={triggerNativePrint}
-                    className="flex items-center gap-2 px-3.5 sm:px-5 py-2 text-xs font-bold text-white bg-gradient-to-r from-emerald-800 to-teal-800 hover:from-emerald-900 hover:to-teal-900 rounded-xl shadow-md transition-all hover:scale-[1.02] cursor-pointer"
-                    title="Print Document or Save as PDF"
-                  >
-                    <Printer className="w-4 h-4 text-emerald-200" />
-                    <span className="hidden sm:inline">Print / Save as PDF</span>
-                    <span className="sm:hidden">Print</span>
-                  </button>
-                </div>
+                {/* PRIMARY ACTION: Download PDF (Solid, bold brand-color button) */}
+                <button
+                  id="btn-download-pdf-file"
+                  type="button"
+                  onClick={() => {
+                    downloadPdfFile().catch((err) => {
+                      console.error('PDF download failed:', err);
+                    });
+                  }}
+                  disabled={isExportingPdf}
+                  className="flex items-center gap-2 px-4 sm:px-5 py-2.5 text-xs font-black text-white bg-emerald-800 hover:bg-emerald-900 active:bg-emerald-950 border border-emerald-900 rounded-xl shadow-md transition-all hover:scale-[1.02] cursor-pointer"
+                  title="Download PDF Document"
+                >
+                  {isExportingPdf ? (
+                    <RefreshCw className="w-4 h-4 text-emerald-200 animate-spin" />
+                  ) : (
+                    <Download className="w-4 h-4 text-white" />
+                  )}
+                  <span>{isExportingPdf ? 'Exporting...' : 'Download PDF'}</span>
+                </button>
               </div>
             </div>
 
-            {/* Live Document Canvas */}
+            {/* Live Document Canvas with Soft Desk Contrast Background */}
             <div 
               ref={previewScrollContainerRef}
-              className="w-full overflow-x-auto py-4 sm:py-6 px-2 sm:px-4 print:p-0 print:overflow-visible touch-pan-x touch-pan-y"
+              className="w-full overflow-x-auto py-6 sm:py-10 px-2 sm:px-6 rounded-2xl sm:rounded-3xl bg-[#f0f2f5] border border-slate-300/80 shadow-inner print:bg-white print:border-0 print:p-0 print:overflow-visible touch-pan-x touch-pan-y"
               style={{ WebkitOverflowScrolling: 'touch' }}
             >
               {/* Scaled Anchor Box: Exactly matches visual scaled dimensions of the document */}

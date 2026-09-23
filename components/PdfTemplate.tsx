@@ -895,43 +895,45 @@ export const PdfTemplate: React.FC<PdfTemplateProps> = ({ trip }) => {
           </div>
 
           {/* Cancellation Slab Table */}
-          <div className="border border-slate-200 rounded-xl overflow-hidden shadow-2xs mb-3.5">
-            <div className="bg-slate-100 px-3.5 py-2 border-b border-slate-200 font-bold text-xs text-slate-800 uppercase tracking-wider flex items-center justify-between">
+          <div className="border border-slate-200 rounded-xl overflow-hidden shadow-2xs mb-0">
+            <div className="bg-slate-100 px-4 py-2 border-b border-slate-200 font-bold text-xs text-slate-800 uppercase tracking-wider flex items-center justify-between">
               <span>Standard Cancellation Slabs</span>
               <span className="text-[10px] text-slate-500 font-normal">Applicable across all holiday packages</span>
             </div>
-            <table className="w-full text-xs text-left">
+            <table className="w-full text-xs text-left border-collapse">
               <thead className="bg-slate-50 text-slate-600 border-b border-slate-200">
                 <tr>
-                  <th className="py-2.5 px-3.5 font-semibold">Notice Period Prior to Arrival</th>
-                  <th className="py-2.5 px-3.5 font-semibold">Refund Policy / Deductions</th>
+                  <th className="py-2.5 px-4 font-semibold text-slate-700">Notice Period Prior to Arrival</th>
+                  <th className="py-2.5 px-4 font-semibold text-slate-700">Refund Policy / Deductions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                <tr>
-                  <td className="py-2.5 px-3.5 font-semibold text-slate-800">30 or more days prior to check-in</td>
-                  <td className="py-2.5 px-3.5 text-emerald-800 font-medium">Full refund less 10% administrative & processing fee</td>
+                <tr className="bg-white">
+                  <td className="py-2.5 px-4 font-semibold text-slate-800">30 or more days prior to check-in</td>
+                  <td className="py-2.5 px-4 text-emerald-800 font-medium">Full refund less 10% administrative & processing fee</td>
                 </tr>
-                <tr className="bg-slate-50/50">
-                  <td className="py-2.5 px-3.5 font-semibold text-slate-800">15 to 29 days prior to check-in</td>
-                  <td className="py-2.5 px-3.5 text-slate-700">50% package retention (50% refund)</td>
+                <tr className="bg-[#F9FAFB]">
+                  <td className="py-2.5 px-4 font-semibold text-slate-800">15 to 29 days prior to check-in</td>
+                  <td className="py-2.5 px-4 text-slate-700">50% package retention (50% refund)</td>
                 </tr>
-                <tr>
-                  <td className="py-2.5 px-3.5 font-semibold text-slate-800">07 to 14 days prior to check-in</td>
-                  <td className="py-2.5 px-3.5 text-slate-700">75% package retention (25% refund)</td>
+                <tr className="bg-white">
+                  <td className="py-2.5 px-4 font-semibold text-slate-800">07 to 14 days prior to check-in</td>
+                  <td className="py-2.5 px-4 text-slate-700">75% package retention (25% refund)</td>
                 </tr>
-                <tr className="bg-slate-50/50">
-                  <td className="py-2.5 px-3.5 font-semibold text-slate-800">Less than 07 days / No-show</td>
-                  <td className="py-2.5 px-3.5 text-rose-700 font-bold">100% retention (No refund admissible)</td>
+                <tr className="bg-[#FEF2F2]">
+                  <td className="py-2.5 px-4 font-semibold text-slate-900">Less than 07 days / No-show</td>
+                  <td className="py-2.5 px-4 text-slate-900 font-medium">
+                    <strong className="text-slate-950 font-bold">100% retention</strong> (No refund admissible)
+                  </td>
                 </tr>
               </tbody>
             </table>
           </div>
 
-          {/* Key Guidelines Cards */}
-          <div className="grid grid-cols-2 gap-3.5 mb-3.5">
+          {/* Key Guidelines & Operational Policies (1x4 Stacked Layout) */}
+          <div className="grid grid-cols-1 gap-3 text-xs mt-7">
             {/* Houseboat Guidelines */}
-            <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-1">
+            <div className="bg-slate-50 px-5 py-3 rounded-xl border border-slate-200 space-y-1">
               <h4 className="font-bold text-slate-900 text-xs flex items-center gap-1.5">
                 <Compass className="w-3.5 h-3.5 text-emerald-700" />
                 Houseboat Cruise Regulations
@@ -942,7 +944,7 @@ export const PdfTemplate: React.FC<PdfTemplateProps> = ({ trip }) => {
             </div>
 
             {/* Chauffeur Guidelines */}
-            <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-1">
+            <div className="bg-slate-50 px-5 py-3 rounded-xl border border-slate-200 space-y-1">
               <h4 className="font-bold text-slate-900 text-xs flex items-center gap-1.5">
                 <Car className="w-3.5 h-3.5 text-emerald-700" />
                 Chauffeur & Vehicle Guidelines
@@ -951,12 +953,9 @@ export const PdfTemplate: React.FC<PdfTemplateProps> = ({ trip }) => {
                 Your dedicated chauffeur is at your disposal between <strong>08:00 AM and 08:00 PM</strong> daily for scheduled sightseeing. In hill stations like Munnar and Vagamon, night driving after 8:00 PM is restricted due to dense mist and safety regulations.
               </p>
             </div>
-          </div>
 
-          {/* Additional Terms & Policies */}
-          <div className="grid grid-cols-2 gap-3.5 text-xs">
             {/* Hotel Check-in Policy */}
-            <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-1">
+            <div className="bg-slate-50 px-5 py-3 rounded-xl border border-slate-200 space-y-1">
               <h4 className="font-bold text-slate-900 text-xs flex items-center gap-1.5">
                 <Clock className="w-3.5 h-3.5 text-teal-700" />
                 Hotel Check-In & Identification
@@ -967,7 +966,7 @@ export const PdfTemplate: React.FC<PdfTemplateProps> = ({ trip }) => {
             </div>
 
             {/* Force Majeure & Amendments */}
-            <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-1">
+            <div className="bg-slate-50 px-5 py-3 rounded-xl border border-slate-200 space-y-1">
               <h4 className="font-bold text-slate-900 text-xs flex items-center gap-1.5">
                 <Info className="w-3.5 h-3.5 text-amber-700" />
                 Force Majeure & Route Changes
@@ -1004,8 +1003,8 @@ export const PdfTemplate: React.FC<PdfTemplateProps> = ({ trip }) => {
             </p>
           </div>
 
-          {/* 2-Column Balanced Cards */}
-          <div className="grid grid-cols-2 gap-3.5 text-xs mb-3.5">
+          {/* 1-Column Information Cards */}
+          <div className="grid grid-cols-1 gap-3.5 text-xs mb-3.5">
             {/* Packing & Climate Essentials */}
             <div className="bg-slate-50 rounded-xl p-3.5 border border-slate-200 space-y-2">
               <h4 className="font-bold text-slate-900 uppercase tracking-wide flex items-center gap-1.5 text-xs">
@@ -1027,7 +1026,6 @@ export const PdfTemplate: React.FC<PdfTemplateProps> = ({ trip }) => {
                 Cultural & Environmental Guidelines
               </h4>
               <ul className="text-slate-600 space-y-1.5 text-[11px] leading-relaxed">
-                <li>• <strong>Temple Attire:</strong> Traditional dress code (Dhoti/Mundu for men; Sarees/Salwars for ladies) is mandatory at heritage temples.</li>
                 <li>• <strong>Eco-Friendly Tourism:</strong> Kerala is an ecologically sensitive destination; please minimize single-use plastics in hill stations and backwaters.</li>
                 <li>• <strong>Forest & Sanctuary Entry:</strong> Carry valid original ID cards for entry into Periyar Tiger Reserve and Eravikulam National Park.</li>
                 <li>• <strong>Local Currency & Digital Pay:</strong> UPI (GPay, PhonePe) and cards are widely accepted, but carry nominal cash for village shops.</li>
@@ -1035,19 +1033,19 @@ export const PdfTemplate: React.FC<PdfTemplateProps> = ({ trip }) => {
             </div>
           </div>
 
-          {/* 24/7 Operations Support & Agency Credentials */}
-          <div className="grid grid-cols-2 gap-3.5 text-xs mb-3.5">
-            {/* 24/7 Guest Support Desk */}
+          {/* 12/7 Operations Support & Agency Credentials */}
+          <div className="grid grid-cols-1 gap-3.5 text-xs mb-3.5">
+            {/* 12/7 Guest Support Desk */}
             <div className="bg-emerald-50/70 border border-emerald-200 rounded-xl p-3.5 space-y-1.5">
               <h4 className="font-bold text-emerald-950 uppercase tracking-wide flex items-center gap-1.5 text-xs">
                 <Info className="w-3.5 h-3.5 text-emerald-700" />
-                24/7 Trip Support & Chauffeur Coordination
+                12/7 Trip Support & Chauffeur Coordination
               </h4>
               <p className="text-slate-700 text-[11px] leading-relaxed">
                 Your assigned trip manager will monitor your journey from arrival to airport departure. Driver details, vehicle registration number, and pickup coordinates are sent via WhatsApp 24 hours prior to travel.
               </p>
               <div className="text-[11px] text-emerald-900 font-semibold pt-1">
-                24/7 Operations Helpline: <strong>+91 91435 43444</strong>
+                12/7 Operations Helpline: <strong>+91 91435 43444</strong>
               </div>
             </div>
 

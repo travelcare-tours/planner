@@ -15,6 +15,7 @@ const nextConfig: NextConfig = {
   typescript: {
     ignoreBuildErrors: false,
   },
+  allowedDevOrigins: ['192.168.29.253', 'localhost', '127.0.0.1'],
   turbopack: {},
   // Allow access to remote image placeholder.
   images: {

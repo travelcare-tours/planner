@@ -187,6 +187,13 @@ select option:checked {
   object-fit: contain;
 }
 
+/* Screen mode: floating paper desk effect with physical drop shadow */
+@media screen {
+  .pdf-page-container {
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1) !important;
+  }
+}
+
 /* Custom scrollbar for activity lists */
 .custom-scrollbar::-webkit-scrollbar {
   width: 6px;
@@ -202,4 +209,47 @@ select option:checked {
 }
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
   background: #94a3b8;
+}
+
+/* ==========================================================================
+   Menu Bar Workspace Dropdown Styles
+   ========================================================================== */
+
+/* 1. Anchor the parent container */
+.menu-parent-container {
+  position: relative;
+  display: inline-block;
+}
+
+/* 2. Position the dropdown menu */
+.dropdown-menu-workspace {
+  position: absolute;
+  top: 110%; /* Adds a little breathing room below the button */
+  right: 0; /* Aligns the right edge of the menu with the right edge of the button */
+  width: 320px; /* Fixed width for desktop */
+  max-width: 90vw; /* Prevents it from being wider than the screen on smaller devices */
+  z-index: 9999; /* Ensures it stays on top of the day selector and other floating elements */
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0px 8px 24px rgba(0, 0, 0, 0.15); /* Clean drop shadow */
+}
+
+/* 3. Mobile responsiveness */
+@media (max-width: 768px) {
+  .dropdown-menu-workspace {
+    position: fixed; /* Detaches from the button on small screens */
+    top: 70px; /* Adjust based on your header height */
+    right: 50%;
+    transform: translateX(50%); /* Centers the menu perfectly on mobile */
+    width: 95vw; /* Takes up most of the mobile screen width */
+    overflow-y: auto; /* Allows scrolling if the menu is long */
+  }
+}
+
+/* Contenteditable Placeholder & Focus Utilities */
+[contenteditable]:empty::before {
+  content: attr(data-placeholder);
+  color: #94a3b8;
+  font-style: italic;
+  pointer-events: none;
 }

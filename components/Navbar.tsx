@@ -25,6 +25,7 @@ import {
   ArrowRight,
   LayoutGrid,
   Table,
+  Check,
   X
 } from 'lucide-react';
 import { StaffUser } from '@/types/itinerary';
@@ -43,6 +44,30 @@ interface NavbarProps {
   voucherNumber: string;
 }
 
+const WORKFLOW_STEPS = [
+  {
+    id: 'whatsapp-leads' as const,
+    stepNum: 1,
+    title: 'Whatsapp Leads',
+    shortTitle: 'Leads',
+    icon: MessageSquare,
+  },
+  {
+    id: 'activities' as const,
+    stepNum: 2,
+    title: 'Activity Selection',
+    shortTitle: 'Activities',
+    icon: CheckSquare,
+  },
+  {
+    id: 'preview' as const,
+    stepNum: 3,
+    title: 'PDF Preview',
+    shortTitle: 'PDF',
+    icon: Sparkles,
+  },
+] as const;
+
 export const Navbar: React.FC<NavbarProps> = ({
   currentTab,
   setCurrentTab,
@@ -55,6 +80,14 @@ export const Navbar: React.FC<NavbarProps> = ({
   onShareWhatsApp,
   voucherNumber,
 }) => {
+  const getStepNumber = (tab: string) => {
+    if (tab === 'whatsapp-leads' || tab === 'editor') return 1;
+    if (tab === 'activities') return 2;
+    if (tab === 'preview') return 3;
+    return 0;
+  };
+  const activeStepNum = getStepNumber(currentTab);
+
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const isMounted = useSyncExternalStore(emptySubscribe, () => true, () => false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -96,7 +129,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   }, []);
 
   return (
-    <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-emerald-900/10 shadow-xs no-print">
+    <header className={`sticky top-0 ${isMenuOpen ? 'z-[9999]' : 'z-50'} bg-white/95 backdrop-blur-md border-b border-emerald-900/10 shadow-xs no-print`}>
       {/* Main navigation - unconstricted free-flow */}
       <div className="w-full px-3 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-13 sm:h-18 gap-2 sm:gap-4">
@@ -116,86 +149,89 @@ export const Navbar: React.FC<NavbarProps> = ({
             />
           </div>
 
-          {/* Navigation Tabs - Free-flowing across the header */}
+          {/* Top Navigation Progress Stepper: Step 1 ➔ Step 2 ➔ Step 3 */}
           <div className="hidden md:flex flex-1 items-center justify-center gap-2 lg:gap-3 px-2">
-            <nav className="flex items-center gap-1.5 bg-slate-100/90 p-1.5 rounded-xl border border-slate-200 shadow-2xs">
-              {/* Primary Tab: Whatsapp Leads */}
-              <button
-                id="nav-tab-whatsapp-leads"
-                onClick={() => setCurrentTab('whatsapp-leads')}
-                className={`flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-bold transition-all ${
-                  currentTab === 'whatsapp-leads'
-                    ? 'bg-[#0B2545] text-white shadow-xs'
-                    : 'text-slate-700 hover:text-slate-950 hover:bg-slate-200/60'
-                }`}
-              >
-                <MessageSquare className={`w-4 h-4 ${currentTab === 'whatsapp-leads' ? 'text-emerald-400' : 'text-emerald-700'}`} />
-                <span>Whatsapp Leads</span>
-              </button>
+            <nav className="flex items-center gap-1 sm:gap-1.5 bg-slate-100/90 p-1.5 rounded-2xl border border-slate-200/90 shadow-2xs">
+              {WORKFLOW_STEPS.map((step, idx) => {
+                const isCurrent = currentTab === step.id || (step.id === 'whatsapp-leads' && currentTab === 'editor');
+                const isCompleted = activeStepNum > step.stepNum;
 
-              {/* Activity Selection Tab */}
-              <button
-                id="nav-tab-activities"
-                onClick={() => setCurrentTab('activities')}
-                className={`flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-bold transition-all relative ${
-                  currentTab === 'activities'
-                    ? 'bg-white text-emerald-950 shadow-xs border border-slate-200/80'
-                    : 'text-slate-700 hover:text-slate-950 hover:bg-slate-200/60'
-                }`}
-              >
-                <CheckSquare className="w-4 h-4 text-teal-600" />
-                <span>Activity Selection</span>
-              </button>
+                return (
+                  <React.Fragment key={step.id}>
+                    {idx > 0 && (
+                      <div className="flex items-center px-1 text-slate-300">
+                        <ArrowRight className={`w-3.5 h-3.5 transition-colors ${
+                          activeStepNum >= step.stepNum ? 'text-emerald-600 stroke-[2.5]' : 'text-slate-300 stroke-[2]'
+                        }`} />
+                      </div>
+                    )}
+                    <button
+                      id={`nav-step-${step.id}`}
+                      type="button"
+                      onClick={() => setCurrentTab(step.id)}
+                      className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                        isCurrent
+                          ? 'bg-[#0B2545] text-white shadow-xs'
+                          : isCompleted
+                          ? 'bg-emerald-50 text-emerald-950 hover:bg-emerald-100/80 border border-emerald-200/90'
+                          : 'text-slate-600 hover:text-slate-950 hover:bg-slate-200/60'
+                      }`}
+                      title={`Step ${step.stepNum}: ${step.title}`}
+                    >
+                      {/* Step Number Circle Badge */}
+                      <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10.5px] font-black shrink-0 transition-all ${
+                        isCurrent
+                          ? 'bg-emerald-400 text-emerald-950 shadow-2xs'
+                          : isCompleted
+                          ? 'bg-emerald-600 text-white'
+                          : 'bg-slate-200 text-slate-600'
+                      }`}>
+                        {isCompleted ? <Check className="w-3 h-3 stroke-[3]" /> : step.stepNum}
+                      </span>
 
-              {/* PDF Preview Tab */}
-              <button
-                id="nav-tab-preview"
-                onClick={() => setCurrentTab('preview')}
-                className={`flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-bold transition-all ${
-                  currentTab === 'preview'
-                    ? 'bg-white text-emerald-950 shadow-xs border border-slate-200/80'
-                    : 'text-slate-700 hover:text-slate-950 hover:bg-slate-200/60'
-                }`}
-              >
-                <Sparkles className="w-4 h-4 text-amber-500" />
-                <span>PDF Preview</span>
-              </button>
+                      {/* Step Label */}
+                      <div className="flex items-center gap-1.5 whitespace-nowrap">
+                        <span className={`text-[10px] uppercase font-black tracking-wider hidden lg:inline ${
+                          isCurrent ? 'text-emerald-300' : isCompleted ? 'text-emerald-700' : 'text-slate-400'
+                        }`}>
+                          Step {step.stepNum}
+                        </span>
+                        <span className="hidden lg:inline text-slate-400/60 font-light">•</span>
+                        <span className="font-bold">{step.title}</span>
+                      </div>
+                    </button>
+                  </React.Fragment>
+                );
+              })}
             </nav>
 
-            {/* Menu Bar - Unconstricted & Free-Flowing into remaining space */}
-            <div className="relative" ref={menuRef}>
+            {/* Menu Bar - Standard Hamburger Menu Button */}
+            <div className="menu-parent-container relative" ref={menuRef}>
               <button
                 id="nav-menu-bar-dropdown"
+                type="button"
                 onClick={() => setIsMenuOpen(!isMenuOpen)}
-                className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-black transition-all border ${
+                className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all border cursor-pointer ${
                   isMenuOpen || currentTab === 'catalog'
                     ? 'bg-slate-900 text-white border-slate-700 shadow-md ring-2 ring-emerald-500/20'
-                    : 'bg-white hover:bg-slate-50 text-slate-800 border-slate-300 shadow-2xs'
+                    : 'bg-white hover:bg-slate-50 text-slate-800 border-slate-300 shadow-2xs hover:shadow-xs'
                 }`}
-                title="Menu Bar: Access Destination Catalog and Import Planner Data"
+                title="Menu"
+                aria-label="Menu"
               >
-                <div className="p-1 rounded bg-amber-400 text-slate-950 font-black flex items-center justify-center">
-                  <Menu className="w-3.5 h-3.5 stroke-[2.5]" />
-                </div>
-                <span>Menu Bar</span>
-                {currentTab === 'catalog' && (
-                  <span className="px-1.5 py-0.2 rounded text-[9px] bg-indigo-500 text-white font-black uppercase">
-                    Catalog
-                  </span>
-                )}
-                <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform ${isMenuOpen ? 'rotate-180 text-white' : ''}`} />
+                <Menu className="w-4 h-4 stroke-[2.5]" />
               </button>
 
               {/* Free-Flowing Menu Dropdown Panel */}
               {isMenuOpen && (
                 <>
                   <div 
-                    className="fixed inset-0 z-40 bg-slate-900/20 backdrop-blur-2xs animate-in fade-in duration-150"
+                    className="fixed inset-0 z-[9998] bg-slate-900/20 backdrop-blur-2xs animate-in fade-in duration-150"
                     onClick={() => setIsMenuOpen(false)}
                   />
-                  <div className="absolute left-0 mt-3 w-88 sm:w-96 bg-white/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-slate-200/90 p-3.5 z-50 animate-in fade-in-50 slide-in-from-top-3 duration-200 ring-1 ring-slate-900/5">
-                    {/* Top Anchor Caret */}
-                    <div className="absolute -top-1.5 left-7 w-3 h-3 bg-white border-t border-l border-slate-200/90 rotate-45 rounded-tl-xs shadow-2xs" />
+                  <div className="dropdown-menu-workspace border border-slate-200/90 p-3.5 animate-in fade-in-50 slide-in-from-top-3 duration-200 ring-1 ring-slate-900/5">
+                    {/* Top Anchor Caret (Desktop only, right-aligned to match button) */}
+                    <div className="hidden md:block absolute -top-1.5 right-3.5 w-3 h-3 bg-white border-t border-l border-slate-200/90 rotate-45 rounded-tl-xs shadow-2xs" />
 
                     <div className="flex items-center justify-between px-2 pb-2.5 mb-2 border-b border-slate-100">
                       <div className="flex items-center gap-2">
@@ -333,42 +369,47 @@ export const Navbar: React.FC<NavbarProps> = ({
           </div>
         </div>
 
-        {/* Mobile secondary tab strip */}
+        {/* Mobile secondary tab strip: Step 1 ➔ Step 2 ➔ Step 3 Stepper */}
         <div className="flex md:hidden overflow-x-auto py-2 gap-1.5 border-t border-slate-100 no-scrollbar items-center justify-between">
-          <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar flex-1">
-            <button
-              onClick={() => setCurrentTab('whatsapp-leads')}
-              className={`flex-1 min-h-[40px] px-2.5 py-1.5 rounded-xl text-xs font-black whitespace-nowrap flex items-center justify-center gap-1.5 transition-all shadow-2xs ${
-                currentTab === 'whatsapp-leads'
-                  ? 'bg-[#0B2545] text-white shadow-xs'
-                  : 'text-slate-700 bg-slate-100 hover:bg-slate-200'
-              }`}
-            >
-              <MessageSquare className={`w-3.5 h-3.5 ${currentTab === 'whatsapp-leads' ? 'text-emerald-400' : 'text-emerald-700'}`} />
-              <span>Leads</span>
-            </button>
-            <button
-              onClick={() => setCurrentTab('activities')}
-              className={`flex-1 min-h-[40px] px-2.5 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap flex items-center justify-center gap-1.5 transition-all shadow-2xs ${
-                currentTab === 'activities'
-                  ? 'bg-[#0B2545] text-white shadow-xs'
-                  : 'text-slate-700 bg-slate-100 hover:bg-slate-200'
-              }`}
-            >
-              <CheckSquare className={`w-3.5 h-3.5 ${currentTab === 'activities' ? 'text-teal-400' : 'text-teal-700'}`} />
-              <span>Activities</span>
-            </button>
-            <button
-              onClick={() => setCurrentTab('preview')}
-              className={`flex-1 min-h-[40px] px-2.5 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap flex items-center justify-center gap-1.5 transition-all shadow-2xs ${
-                currentTab === 'preview'
-                  ? 'bg-[#0B2545] text-white shadow-xs'
-                  : 'text-slate-700 bg-slate-100 hover:bg-slate-200'
-              }`}
-            >
-              <Sparkles className={`w-3.5 h-3.5 ${currentTab === 'preview' ? 'text-amber-400' : 'text-amber-600'}`} />
-              <span>PDF</span>
-            </button>
+          <div className="flex items-center gap-1 overflow-x-auto no-scrollbar flex-1 bg-slate-100/90 p-1 rounded-xl border border-slate-200/80">
+            {WORKFLOW_STEPS.map((step, idx) => {
+              const isCurrent = currentTab === step.id || (step.id === 'whatsapp-leads' && currentTab === 'editor');
+              const isCompleted = activeStepNum > step.stepNum;
+
+              return (
+                <React.Fragment key={step.id}>
+                  {idx > 0 && (
+                    <div className="flex items-center px-0.5 text-slate-300 shrink-0">
+                      <ArrowRight className={`w-3 h-3 transition-colors ${
+                        activeStepNum >= step.stepNum ? 'text-emerald-600 stroke-[2.5]' : 'text-slate-300 stroke-[2]'
+                      }`} />
+                    </div>
+                  )}
+                  <button
+                    onClick={() => setCurrentTab(step.id)}
+                    className={`flex-1 min-h-[36px] px-2 py-1 rounded-lg text-xs font-bold whitespace-nowrap flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                      isCurrent
+                        ? 'bg-[#0B2545] text-white shadow-xs'
+                        : isCompleted
+                        ? 'bg-emerald-50 text-emerald-950 border border-emerald-200/80'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                    title={`Step ${step.stepNum}: ${step.title}`}
+                  >
+                    <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] font-black shrink-0 ${
+                      isCurrent
+                        ? 'bg-emerald-400 text-emerald-950'
+                        : isCompleted
+                        ? 'bg-emerald-600 text-white'
+                        : 'bg-slate-200 text-slate-600'
+                    }`}>
+                      {isCompleted ? <Check className="w-2.5 h-2.5 stroke-[3]" /> : step.stepNum}
+                    </span>
+                    <span className="text-[11px] font-bold">{step.shortTitle}</span>
+                  </button>
+                </React.Fragment>
+              );
+            })}
           </div>
           <button
             ref={mobileTriggerRef}
