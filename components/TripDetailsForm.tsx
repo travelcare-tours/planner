@@ -40,7 +40,7 @@ import {
   LayoutGrid
 } from 'lucide-react';
 import { TripDetails, AccommodationItem, DayItinerary } from '@/types/itinerary';
-import { INITIAL_DESTINATIONS_CATALOG } from '@/lib/sample-data';
+import { INITIAL_DESTINATIONS_CATALOG, DEFAULT_KERALA_DESTINATIONS } from '@/lib/sample-data';
 import { generateFallbackTitles } from '@/lib/title-generator';
 import DatePicker, { parseDateSafe } from '@/components/DatePicker';
 import { CustomSelect } from '@/components/CustomSelect';
@@ -79,18 +79,18 @@ const MEAL_PLAN_OPTIONS = [
 
 // Popular Kerala Destinations with curated defaults
 const POPULAR_DESTINATIONS: { name: string; tag: string; defaultHotel: string; defaultRoom: string; defaultNights: number }[] = [
-  { name: 'Munnar', tag: 'Hill Station & Tea Gardens', defaultHotel: 'The Leaf Munnar Resort', defaultRoom: 'Deluxe Green Leaf Room', defaultNights: 2 },
-  { name: 'Thekkady', tag: 'Wildlife & Spices', defaultHotel: 'Pepper Vine Hotel', defaultRoom: 'Deluxe Room', defaultNights: 1 },
-  { name: 'Alleppey', tag: 'Backwaters & Houseboat', defaultHotel: 'Private Premium AC Houseboat', defaultRoom: '1 Bed Private Houseboat', defaultNights: 1 },
-  { name: 'Kovalam', tag: 'Beach & Lighthouse', defaultHotel: 'Uday Samudra Leisure Beach Hotel', defaultRoom: 'Superior Room', defaultNights: 2 },
-  { name: 'Cochin', tag: 'Heritage & Airport Hub', defaultHotel: 'Trident Cochin', defaultRoom: 'Deluxe Room', defaultNights: 1 },
-  { name: 'Kumarakom', tag: 'Vembanad Lake & Birds', defaultHotel: 'Whispering Palms Lake Resort', defaultRoom: 'Lake View Room', defaultNights: 1 },
-  { name: 'Wayanad', tag: 'Waterfalls & Mist', defaultHotel: 'Morickap Resort', defaultRoom: 'Suite Room', defaultNights: 2 },
-  { name: 'Kanyakumari', tag: 'Sunrise & Cape Point', defaultHotel: 'Sparsa Resort', defaultRoom: 'Deluxe Room', defaultNights: 1 },
-  { name: 'Poovar', tag: 'Golden Beach & Estuary', defaultHotel: 'Poovar Island Resort', defaultRoom: 'Floating Cottage', defaultNights: 1 },
-  { name: 'Athirappilly', tag: 'Waterfalls of India', defaultHotel: 'Rainforest Resort', defaultRoom: 'Waterfall Facing Room', defaultNights: 1 },
-  { name: 'Varkala', tag: 'Cliff Beach & Sunset', defaultHotel: 'Gateway Hotel Varkala', defaultRoom: 'Sea View Room', defaultNights: 1 },
-  { name: 'Marari', tag: 'Serene Beach Retreat', defaultHotel: 'Marari Beach Resort', defaultRoom: 'Garden Villa', defaultNights: 1 },
+  { name: 'Munnar', tag: 'Hill Station & Tea Gardens', defaultHotel: '', defaultRoom: 'Deluxe Room', defaultNights: 2 },
+  { name: 'Thekkady', tag: 'Wildlife & Spices', defaultHotel: '', defaultRoom: 'Deluxe Room', defaultNights: 1 },
+  { name: 'Alleppey', tag: 'Backwaters & Houseboat', defaultHotel: '', defaultRoom: 'Houseboat Stay', defaultNights: 1 },
+  { name: 'Kovalam', tag: 'Beach & Lighthouse', defaultHotel: '', defaultRoom: 'Deluxe Room', defaultNights: 2 },
+  { name: 'Cochin', tag: 'Heritage & Airport Hub', defaultHotel: '', defaultRoom: 'Deluxe Room', defaultNights: 1 },
+  { name: 'Kumarakom', tag: 'Vembanad Lake & Birds', defaultHotel: '', defaultRoom: 'Deluxe Room', defaultNights: 1 },
+  { name: 'Wayanad', tag: 'Waterfalls & Mist', defaultHotel: '', defaultRoom: 'Deluxe Room', defaultNights: 2 },
+  { name: 'Kanyakumari', tag: 'Sunrise & Cape Point', defaultHotel: '', defaultRoom: 'Deluxe Room', defaultNights: 1 },
+  { name: 'Poovar', tag: 'Golden Beach & Estuary', defaultHotel: '', defaultRoom: 'Deluxe Room', defaultNights: 1 },
+  { name: 'Athirappilly', tag: 'Waterfalls of India', defaultHotel: '', defaultRoom: 'Deluxe Room', defaultNights: 1 },
+  { name: 'Varkala', tag: 'Cliff Beach & Sunset', defaultHotel: '', defaultRoom: 'Deluxe Room', defaultNights: 1 },
+  { name: 'Marari', tag: 'Serene Beach Retreat', defaultHotel: '', defaultRoom: 'Deluxe Room', defaultNights: 1 },
 ];
 
 // Pure ID generator for stable component renders
@@ -666,18 +666,6 @@ export const TripDetailsForm: React.FC<TripDetailsFormProps> = ({
     }
   };
 
-  // Default Kerala destinations shown as pills (matching the screenshot)
-  const DEFAULT_KERALA_DESTINATIONS = [
-    'Munnar',
-    'Thekkady',
-    'Alleppey',
-    'Kovalam',
-    'Varkala',
-    'Kochi',
-    'Vagamon',
-    'Kanyakumari',
-  ];
-
   // Check if a destination is selected in the current trip
   const isDestinationSelected = (destName: string) => {
     const norm = destName.toLowerCase().trim();
@@ -899,7 +887,7 @@ export const TripDetailsForm: React.FC<TripDetailsFormProps> = ({
     const cleanDest = (destName && destName.trim()) ? destName.trim() : 'Kerala Stop';
     const found = POPULAR_DESTINATIONS.find(d => d.name.toLowerCase() === cleanDest.toLowerCase());
 
-    const defaultHotel = found?.defaultHotel || `${cleanDest} Selected Hotel`;
+    const defaultHotel = found?.defaultHotel || '';
     const defaultRoom = found?.defaultRoom || 'Deluxe Room';
 
     const newAcc: AccommodationItem = {

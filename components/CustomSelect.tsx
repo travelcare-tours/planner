@@ -173,24 +173,30 @@ export function CustomSelect({
   const themeStyles = {
     emerald: {
       borderFocus: 'focus:border-emerald-500 focus:ring-2 focus:ring-emerald-600/25',
+      openRing: 'ring-2 ring-emerald-600/25 border-emerald-500',
       activeItem: 'bg-emerald-50 text-emerald-950 font-bold border border-emerald-200/80',
       activeIcon: 'text-emerald-700',
       badge: 'bg-emerald-100 text-emerald-800',
       hoverBorder: 'hover:border-emerald-400',
+      searchFocus: 'focus:ring-emerald-600',
     },
     rose: {
       borderFocus: 'focus:border-rose-500 focus:ring-2 focus:ring-rose-600/25',
+      openRing: 'ring-2 ring-rose-600/25 border-rose-500',
       activeItem: 'bg-rose-50 text-rose-950 font-bold border border-rose-200/80',
       activeIcon: 'text-rose-700',
       badge: 'bg-rose-100 text-rose-800',
       hoverBorder: 'hover:border-rose-400',
+      searchFocus: 'focus:ring-rose-600',
     },
     navy: {
       borderFocus: 'focus:border-[#0B2545] focus:ring-2 focus:ring-[#0B2545]/25',
+      openRing: 'ring-2 ring-[#0B2545]/25 border-[#0B2545]',
       activeItem: 'bg-slate-100 text-slate-900 font-bold border border-slate-300',
       activeIcon: 'text-[#0B2545]',
       badge: 'bg-slate-200 text-slate-800',
       hoverBorder: 'hover:border-slate-400',
+      searchFocus: 'focus:ring-[#0B2545]',
     },
   }[theme];
 
@@ -215,7 +221,7 @@ export function CustomSelect({
         onClick={toggleOpen}
         title={title}
         className={`w-full flex items-center justify-between gap-2 bg-white border border-slate-300 text-slate-800 font-semibold shadow-2xs transition-all cursor-pointer select-none outline-hidden disabled:opacity-50 disabled:cursor-not-allowed ${sizeStyles} ${themeStyles.hoverBorder} ${themeStyles.borderFocus} ${
-          isOpen ? 'ring-2 ring-emerald-600/25 border-emerald-500' : ''
+          isOpen ? themeStyles.openRing : ''
         } ${triggerClassName}`}
       >
         <span className="truncate text-left flex-1">
@@ -257,7 +263,7 @@ export function CustomSelect({
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Type to search..."
-                  className="w-full h-8 pl-8 pr-7 text-xs bg-slate-50 border border-slate-200 rounded-lg text-slate-800 placeholder-slate-400 focus:bg-white focus:outline-hidden focus:ring-1 focus:ring-emerald-600 font-medium"
+                  className={`w-full h-8 pl-8 pr-7 text-xs bg-slate-50 border border-slate-200 rounded-lg text-slate-800 placeholder-slate-400 focus:bg-white focus:outline-hidden focus:ring-1 ${themeStyles.searchFocus} font-medium`}
                 />
                 {searchQuery && (
                   <button

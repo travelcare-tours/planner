@@ -56,12 +56,11 @@ export function generateHotelExcelTemplate(): void {
       'Base B2B Rate (CP)',
       'Status (Active/Inactive)'
     ],
-    // Munnar Property with 2 room categories
-    ['Munnar', 'The Leaf Munnar Resort', 4, 'Silver Leaf Valley View', 3200, 'Active'],
-    ['Munnar', 'The Leaf Munnar Resort', 4, 'Golden Leaf Cottage', 4400, 'Active'],
-    // Munnar 5-star
-    ['Munnar', 'Blanket Hotel & Spa', 5, 'Premier Mountain View', 5500, 'Active'],
-    ['Munnar', 'Blanket Hotel & Spa', 5, 'Valley View Suite', 7800, 'Active'],
+    // Munnar Properties
+    ['Munnar', 'Parakkat Nature Resort', 5, 'Classic Room Valley View', 6500, 'Active'],
+    ['Munnar', 'Parakkat Nature Resort', 5, 'Club Suite with Balcony', 8500, 'Active'],
+    ['Munnar', 'The Leaf Munnar', 4, 'Silver Leaf Valley View', 3200, 'Active'],
+    ['Munnar', 'The Leaf Munnar', 4, 'Golden Leaf Cottage', 4400, 'Active'],
     // Thekkady Property
     ['Thekkady', 'Greenwoods Resort Thekkady', 4, 'Aranya Superior Room', 3200, 'Active'],
     ['Thekkady', 'Greenwoods Resort Thekkady', 4, 'Ranni Plunge Pool Villa', 6800, 'Active'],
@@ -94,7 +93,7 @@ export function generateHotelExcelTemplate(): void {
     ['TRAVEL CARE TOURS - HOTEL & ROOM INVENTORY UPLOAD GUIDE'],
     [''],
     ['Field Name', 'Required?', 'Allowed Values / Examples', 'Description'],
-    ['Destination', 'Yes', 'Munnar, Thekkady, Alleppey, Kovalam, Cochin, Poovar, Wayanad, etc.', 'The Kerala destination city or region.'],
+    ['Destination', 'Yes', 'Munnar, Alleppey, Thekkady, Kovalam, Varkala, Kanyakumari, Wayanad, Ooty, Rameswaram, Thiruvananthapuram, Trivandrum, Kumarakom, Calicut, Coorg, Bangalore, Kollam, etc.', 'The destination city or region.'],
     ['Hotel Name', 'Yes', 'e.g. The Leaf Munnar Resort', 'Exact name of the resort or partner property.'],
     ['Star Rating', 'Optional', '1 to 5 (e.g. 4)', 'Hotel official star classification.'],
     ['Room Category', 'Yes', 'e.g. Premium Valley View, Deluxe Cottage', 'Name of the specific room category or suite.'],

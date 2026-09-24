@@ -128,11 +128,30 @@ export interface PlannerImportPayload {
   }>;
 }
 
+export interface SeasonRateBracket {
+  id: string;
+  season_name: string; // e.g. "Off-Peak", "Regular Season", "Peak Festive", "High Season"
+  date_start?: string;  // e.g. "01-Jun"
+  date_end?: string;    // e.g. "30-Sep"
+  date_bracket: string; // e.g. "01-Jun to 30-Sep"
+  base_rate: number;   // base B2B price for this season
+  ep_rate?: number;    // European Plan (Room Only)
+  cp_rate?: number;    // Continental Plan (Breakfast)
+  map_rate?: number;   // Modified American Plan (Breakfast & Dinner)
+  ap_rate?: number;    // American Plan (All Meals)
+  extra_adult?: number;// Extra bed adult
+  child_with_bed?: number; // Child with bed
+  child_no_bed?: number;   // Child without bed
+}
+
 export interface RoomModel {
   id: string;
   hotel_id: string;
   room_category: string;
   base_b2b_rate: number; // represents base CP rate per room per night
+  max_occupancy?: string; // e.g. "2 Adults + 1 Child"
+  total_inventory?: number; // e.g. 10 rooms
+  seasons?: SeasonRateBracket[];
 }
 
 export interface HotelModel {

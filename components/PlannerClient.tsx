@@ -21,6 +21,9 @@ import {
   HotelRoomCatalogManager 
 } from '@/components/HotelRoomCatalogManager';
 import { 
+  HotelRoomCatalogManagerV2 
+} from '@/components/HotelRoomCatalogManagerV2';
+import { 
   PdfTemplate 
 } from '@/components/PdfTemplate';
 import { 
@@ -76,30 +79,51 @@ import { GoogleSheetsModal } from '@/components/GoogleSheetsModal';
 import { saveVoucherToGoogleSheet, fetchLastVoucherNumber } from '@/lib/google-sheets-sync';
 
 export interface PlannerClientProps {
-  initialTab?: 'whatsapp-leads' | 'editor' | 'activities' | 'catalog' | 'hotels' | 'preview' | 'docs';
+  initialTab?: 'whatsapp-leads' | 'editor' | 'activities' | 'catalog' | 'hotels' | 'hotels-v2' | 'preview' | 'docs';
 }
 
 export function PlannerClient({ initialTab = 'whatsapp-leads' }: PlannerClientProps) {
-  const [currentTab, setCurrentTab] = useState<'whatsapp-leads' | 'editor' | 'activities' | 'catalog' | 'hotels' | 'preview' | 'docs'>(initialTab);
+  const [currentTab, setCurrentTab] = useState<'whatsapp-leads' | 'editor' | 'activities' | 'catalog' | 'hotels' | 'hotels-v2' | 'preview' | 'docs'>(initialTab);
   
-  const [trip, setTrip] = useState<TripDetails>(() => {
-    if (typeof window !== 'undefined') {
-      return applyDynamicTripDates(SAMPLE_TRIP, new Date());
-    }
-    return SAMPLE_TRIP;
-  });
+  const [trip, setTrip] = useState<TripDetails>(SAMPLE_TRIP);
   const [catalog, setCatalog] = useState<DestinationCatalogItem[]>(INITIAL_DESTINATIONS_CATALOG);
-  const [hotelCatalog, setHotelCatalog] = useState<HotelModel[]>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const stored = localStorage.getItem('tct_hotel_catalog_v1');
-        if (stored) return JSON.parse(stored);
-      } catch (e) {
-        console.error('Failed to load hotel catalog from localStorage', e);
+  const [hotelCatalog, setHotelCatalog] = useState<HotelModel[]>(INITIAL_HOTEL_CATALOG);
+
+  useEffect(() => {
+    // Sync dynamic dates on client
+    setTrip((prev) => applyDynamicTripDates(prev, new Date()));
+
+    // Load stored hotel catalog from localStorage
+    try {
+      const stored = localStorage.getItem('tct_hotel_catalog_v1');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          // Merge in any missing Munnar hotels from INITIAL_HOTEL_CATALOG
+          const existingNames = new Set(parsed.map((h: any) => (h.hotel_name || '').toLowerCase().trim()));
+          const missingMunnar = INITIAL_HOTEL_CATALOG.filter(
+            (h) => !existingNames.has(h.hotel_name.toLowerCase().trim())
+          );
+          if (missingMunnar.length > 0) {
+            const merged = [...parsed, ...missingMunnar];
+            setHotelCatalog(merged);
+            localStorage.setItem('tct_hotel_catalog_v1', JSON.stringify(merged));
+          } else {
+            setHotelCatalog(parsed);
+          }
+        } else {
+          setHotelCatalog(INITIAL_HOTEL_CATALOG);
+          localStorage.setItem('tct_hotel_catalog_v1', JSON.stringify(INITIAL_HOTEL_CATALOG));
+        }
+      } else {
+        setHotelCatalog(INITIAL_HOTEL_CATALOG);
+        localStorage.setItem('tct_hotel_catalog_v1', JSON.stringify(INITIAL_HOTEL_CATALOG));
       }
+    } catch (e) {
+      console.error('Failed to load hotel catalog from localStorage', e);
+      setHotelCatalog(INITIAL_HOTEL_CATALOG);
     }
-    return INITIAL_HOTEL_CATALOG;
-  });
+  }, []);
 
   const handleUpdateHotelCatalog = (newCatalog: HotelModel[]) => {
     setHotelCatalog(newCatalog);
@@ -760,9 +784,17 @@ ${trip.days.map((d) => `*Day ${d.dayNumber} (${d.destination}):* ${d.activities.
           />
         )}
 
-        {/* Hotel & Room Catalog Management View */}
+        {/* Hotel & Room Catalog Management View (v1) */}
         {currentTab === 'hotels' && (
           <HotelRoomCatalogManager
+            hotelCatalog={hotelCatalog}
+            onUpdateHotelCatalog={handleUpdateHotelCatalog}
+          />
+        )}
+
+        {/* Hotel & Room Rates Engine (v2) */}
+        {currentTab === 'hotels-v2' && (
+          <HotelRoomCatalogManagerV2
             hotelCatalog={hotelCatalog}
             onUpdateHotelCatalog={handleUpdateHotelCatalog}
           />
