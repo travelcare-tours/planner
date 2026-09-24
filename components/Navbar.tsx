@@ -318,9 +318,8 @@ export const Navbar: React.FC<NavbarProps> = ({
                               <span className="font-extrabold text-slate-900 text-xs group-hover:text-emerald-900 transition-colors">Hotel Rates Engine</span>
                               <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-600 text-white font-black tracking-wider uppercase">v2</span>
                             </div>
-                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold border border-emerald-200/60">Finder 3-Col</span>
                           </div>
-                          <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">macOS Finder 3-column drilldown, seasonal matrix & meal plan tariffs.</p>
+                          <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">Seasonal matrix rates, meal plan tariffs & inline tariff editing.</p>
                         </div>
                       </button>
                     </div>
@@ -516,9 +515,8 @@ export const Navbar: React.FC<NavbarProps> = ({
                         <span className="font-bold text-slate-900 text-sm">Hotel Rates Engine</span>
                         <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-600 text-white font-black tracking-wider uppercase">v2</span>
                       </div>
-                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-200 text-emerald-900 font-bold">Finder 3-Col</span>
                     </div>
-                    <p className="text-xs text-slate-500 mt-0.5">macOS Finder 3-column drilldown, seasonal matrix & meal plan tariffs.</p>
+                    <p className="text-xs text-slate-500 mt-0.5">Seasonal matrix rates, meal plan tariffs & inline tariff editing.</p>
                   </div>
                 </button>
               </div>
