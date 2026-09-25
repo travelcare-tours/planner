@@ -6,8 +6,8 @@ export function getAssetPath(path: string): string {
 
   if (typeof window !== 'undefined') {
     // Dynamic runtime check: if deployed on GitHub Pages project subpath
-    if (window.location.pathname.includes('/planner_antigravity')) {
-      return `/planner_antigravity${cleanPath}`;
+    if (window.location.pathname.startsWith('/planner')) {
+      return `/planner${cleanPath}`;
     }
   }
 
