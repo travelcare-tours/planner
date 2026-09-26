@@ -29,6 +29,7 @@ interface ActivityManagerProps {
   trip: TripDetails;
   onUpdateTrip: (updated: TripDetails) => void;
   catalog: DestinationCatalogItem[];
+  onUpdateCatalog?: (newCatalog: DestinationCatalogItem[]) => void;
   onNavigateToPreview: () => void;
 }
 
@@ -36,6 +37,7 @@ export const ActivityManager: React.FC<ActivityManagerProps> = ({
   trip,
   onUpdateTrip,
   catalog,
+  onUpdateCatalog,
   onNavigateToPreview,
 }) => {
   const [activeDayIndex, setActiveDayIndex] = useState<number>(0);
@@ -346,7 +348,7 @@ export const ActivityManager: React.FC<ActivityManagerProps> = ({
     triggerSave({ ...trip, days: updatedDays });
   };
 
-  // Add custom activity to current day
+  // Add custom activity to current day with automatic persistence
   const handleAddCustomActivity = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTitle.trim()) return;
@@ -365,7 +367,48 @@ export const ActivityManager: React.FC<ActivityManagerProps> = ({
     const targetDay = { ...updatedDays[activeDayIndex] };
     targetDay.activities = [...targetDay.activities, newActivity];
     updatedDays[activeDayIndex] = targetDay;
+    
+    // 1. Auto-save to current trip & session
     triggerSave({ ...trip, days: updatedDays });
+
+    // 2. Auto-save to master destination catalog so it is remembered for future itineraries
+    try {
+      if (targetDay.destination) {
+        const destKey = targetDay.destination.toLowerCase().trim();
+        if (onUpdateCatalog && catalog && catalog.length > 0) {
+          const updatedCatalog = catalog.map((cat) => {
+            if (
+              cat.destination.toLowerCase().includes(destKey) ||
+              destKey.includes(cat.destination.toLowerCase())
+            ) {
+              const alreadyExists = cat.defaultActivities.some(
+                (a) => a.title.toLowerCase() === newActivity.title.toLowerCase()
+              );
+              if (!alreadyExists) {
+                return {
+                  ...cat,
+                  defaultActivities: [...cat.defaultActivities, newActivity],
+                };
+              }
+            }
+            return cat;
+          });
+          onUpdateCatalog(updatedCatalog);
+        }
+
+        // 3. Persist to custom activities pool in localStorage
+        if (typeof window !== 'undefined') {
+          const storedCustom = localStorage.getItem('tct_custom_activities_pool');
+          const customPool: ActivityItem[] = storedCustom ? JSON.parse(storedCustom) : [];
+          if (!customPool.some((a) => a.title.toLowerCase() === newActivity.title.toLowerCase())) {
+            customPool.push(newActivity);
+            localStorage.setItem('tct_custom_activities_pool', JSON.stringify(customPool));
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('Auto-save custom activity pool notice:', err);
+    }
 
     // Reset modal
     setNewTitle('');

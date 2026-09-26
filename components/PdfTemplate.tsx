@@ -64,7 +64,7 @@ const PageHeader: React.FC<{ pageNum?: number }> = () => (
         Thrikkakara, Ernakulam, Kerala - 682021
       </div>
       <div className="text-[10px] text-emerald-900 font-medium">
-        Ph: <span className="font-bold">+91 91435 43444</span> | +91 91435 43666,  travelcare598@gmail.com
+        Ph: <span className="font-bold">+91 91435 43666</span>,  travelcare598@gmail.com
       </div>
     </div>
   </div>
@@ -116,6 +116,15 @@ export const PdfTemplate: React.FC<PdfTemplateProps> = ({ trip }) => {
   const balancePct = 100 - advancePct;
   const advance100 = netAmount;
 
+  const isConfirmed = (trip.bookingStatus || 'Confirmed') === 'Confirmed';
+  const hasAdvancePaid = Boolean(
+    trip.advancePaid &&
+    trip.advancePaid !== '₹ 0/-' &&
+    trip.advancePaid !== '₹ 0.00' &&
+    trip.advancePaid !== '₹ 0' &&
+    trip.advancePaid.trim() !== ''
+  );
+
   // Statutory UPI limit: UPI transactions are capped at ₹ 1,00,000 (1 Lakh).
   // If the advance amount exceeds 1 Lakh, hide QR and UPI pay button.
   const isUpiEligible = advanceAmount > 0 && advanceAmount <= 100000;
@@ -163,11 +172,64 @@ export const PdfTemplate: React.FC<PdfTemplateProps> = ({ trip }) => {
   };
   const dynamicTripTitleStyle = getDynamicTripTitleStyle(rawTripTitle);
 
-  // Chunk days into groups of 2 for strict A4 non-overflowing pagination
+  // Dynamic day packing: estimate content height for each day and bin-pack
+  // into pages so as many days fit per page as possible (reduces page count).
+  //
+  // Height constants (px equivalents calibrated for the rendered card sizes):
+  //   Section header row (pill + h2): ~52px — charged once per page
+  //   space-y-2.5 gap between day cards: ~10px per gap
+  //   Day card header: ~32px
+  //   Summary paragraph (if present): ~26px
+  //   Activities label row: ~20px
+  //   Each activity row (title + optional description line): ~38px
+  //   Overnight stay row at bottom: ~26px
+  //   Card padding/borders: ~12px
+  // Available body height per page (A4 297mm - 12mm top - 12mm bottom padding
+  //   minus page-header ~64px and page-footer ~32px): ~510px usable.
+  const PAGE_HEIGHT = 720;
+  const SECTION_HEADER_COST = 52;
+  const GAP_COST = 10;
+  const CARD_BASE = 32 + 12; // header + padding/border
+  const SUMMARY_COST = 26;
+  const ACTS_LABEL_COST = 20;
+  const ACT_COST = 38;
+  const STAY_ROW_COST = 26;
+  const MAX_ACTS_SHOWN = 4;
+
+  const estimateDayHeight = (day: (typeof trip.days)[number]): number => {
+    const selectedActs = day.activities ? day.activities.filter((a) => a.isSelected) : [];
+    const shownActs = Math.min(selectedActs.length, MAX_ACTS_SHOWN);
+    return (
+      CARD_BASE +
+      (day.summary ? SUMMARY_COST : 0) +
+      ACTS_LABEL_COST +
+      shownActs * ACT_COST +
+      STAY_ROW_COST
+    );
+  };
+
   const dayChunks: (typeof trip.days)[] = [];
   if (trip.days && trip.days.length > 0) {
-    for (let i = 0; i < trip.days.length; i += 2) {
-      dayChunks.push(trip.days.slice(i, i + 2));
+    let currentChunk: typeof trip.days = [];
+    let usedHeight = SECTION_HEADER_COST; // section pill + h2 always on first page
+
+    for (const day of trip.days) {
+      const dayH = estimateDayHeight(day);
+      const gapCost = currentChunk.length > 0 ? GAP_COST : 0;
+
+      if (currentChunk.length > 0 && usedHeight + gapCost + dayH > PAGE_HEIGHT) {
+        // This day won't fit — flush current chunk and start a new page
+        dayChunks.push(currentChunk);
+        currentChunk = [day];
+        usedHeight = SECTION_HEADER_COST + dayH; // header charged fresh each page
+      } else {
+        currentChunk.push(day);
+        usedHeight += gapCost + dayH;
+      }
+    }
+
+    if (currentChunk.length > 0) {
+      dayChunks.push(currentChunk);
     }
   } else {
     dayChunks.push([]);
@@ -207,7 +269,7 @@ export const PdfTemplate: React.FC<PdfTemplateProps> = ({ trip }) => {
             <div className="flex items-center justify-between gap-4 mb-3">
               <span className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full text-[11px] font-bold bg-amber-400 text-emerald-950 uppercase tracking-widest shadow-2xs">
                 <Compass className="w-3 h-3 text-emerald-950" />
-                Section 1: Tour Overview & Quotation Voucher
+                {isConfirmed ? 'Section 1: Tour Overview' : 'Section 1: Tour Overview & Quotation Voucher'}
               </span>
               <span className="text-xs font-mono text-emerald-200 font-bold bg-white/10 px-2.5 py-0.5 rounded">
                 Ref: {quoteRef}
@@ -393,18 +455,35 @@ export const PdfTemplate: React.FC<PdfTemplateProps> = ({ trip }) => {
 
           {/* Standalone Reservation Status & Meal Plan Overview Cards */}
           <div className="grid grid-cols-2 gap-3.5 mb-3.5">
-            <div className="bg-amber-50/60 border border-amber-200/90 rounded-xl p-3 shadow-2xs">
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-amber-900">Booking Status</span>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-200 text-amber-950 border border-amber-300">
-                  {trip.bookingStatus || 'Under Review'}
-                </span>
+            {isConfirmed ? (
+              <div className="bg-emerald-50/80 border border-emerald-300 rounded-xl p-3 shadow-2xs">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-950">Booking Status</span>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-600 text-white shadow-2xs">
+                    Confirmed
+                  </span>
+                </div>
+                <h4 className="text-xs font-bold text-emerald-950 mb-0.5">Status: Confirmed & Reserved</h4>
+                <p className="text-[10.5px] text-slate-700 leading-relaxed">
+                  {hasAdvancePaid 
+                    ? 'Advance payment has been received and verified. Hotel room reservations and room categories are locked as per the confirmed night schedule.'
+                    : 'Booking is confirmed. Hotel reservations are secured as per the confirmed night schedule.'}
+                </p>
               </div>
-              <h4 className="text-xs font-bold text-slate-900 mb-0.5">Status: Under Review (Proposed Quotation)</h4>
-              <p className="text-[10.5px] text-slate-600 leading-relaxed">
-                Hotels and room types are proposed based on current availability. Final confirmed vouchers are issued immediately upon receipt of the advance payment.
-              </p>
-            </div>
+            ) : (
+              <div className="bg-amber-50/60 border border-amber-200/90 rounded-xl p-3 shadow-2xs">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-amber-900">Booking Status</span>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-200 text-amber-950 border border-amber-300">
+                    {trip.bookingStatus || 'Under Review'}
+                  </span>
+                </div>
+                <h4 className="text-xs font-bold text-slate-900 mb-0.5">Status: Under Review (Proposed Quotation)</h4>
+                <p className="text-[10.5px] text-slate-600 leading-relaxed">
+                  Hotels and room types are proposed based on current availability. Final confirmed vouchers are issued immediately upon receipt of the advance payment.
+                </p>
+              </div>
+            )}
 
             <div className="bg-emerald-50/60 border border-emerald-200/90 rounded-xl p-3 shadow-2xs">
               <div className="flex items-center justify-between mb-1">
@@ -456,9 +535,6 @@ export const PdfTemplate: React.FC<PdfTemplateProps> = ({ trip }) => {
                 <div className="text-sm font-bold text-white">{trip.vehicleType}</div>
               </div>
             </div>
-            <div className="text-right text-[11px] text-emerald-200 max-w-xs">
-              Dedicated Chauffeur • AC On throughout • Tolls, parking, fuel & driver allowances included
-            </div>
           </div>
         </div>
 
@@ -486,30 +562,31 @@ export const PdfTemplate: React.FC<PdfTemplateProps> = ({ trip }) => {
               <h2 className="text-lg font-bold text-slate-900 leading-tight">Customized Sightseeing & Daily Schedule</h2>
             </div>
 
-            {/* Days in this page chunk (2 days per page - calibrated for exact A4 fit) */}
+            {/* Days in this page chunk — dynamically packed */}
             <div className="space-y-2.5">
               {chunk.map((day) => {
                 const selectedActs = day.activities ? day.activities.filter((a) => a.isSelected) : [];
 
                 return (
                   <div key={day.dayNumber} className="border border-slate-200 rounded-xl overflow-hidden bg-white shadow-2xs">
-                    {/* Day Header */}
+                    {/* Day Header: Day badge + title on left, date on right only */}
                     <div className="bg-slate-50 px-3 py-1.5 border-b border-slate-200 flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-2">
-                        <span className="px-2 py-0.5 rounded-md bg-emerald-900 text-white font-bold text-[11px]">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="shrink-0 px-2 py-0.5 rounded-md bg-emerald-900 text-white font-bold text-[11px]">
                           Day {day.dayNumber}
                         </span>
-                        <span className="font-bold text-xs text-slate-900 truncate max-w-[280px]">{day.title}</span>
+                        <span className="font-bold text-xs text-slate-900 truncate">{day.title}</span>
                       </div>
-                      <div className="text-[10px] text-slate-500 font-medium whitespace-nowrap">
-                        <span className="font-semibold text-slate-700">{day.date}</span> • Stay: <strong className="text-emerald-900">{day.overnightStay}</strong>
-                      </div>
+                      {/* Date only — stay/overnight moved to bottom of activities */}
+                      <span className="shrink-0 text-[10px] font-semibold text-slate-600 whitespace-nowrap">
+                        {day.date}
+                      </span>
                     </div>
 
                     <div className="p-2.5 space-y-2">
                       {/* Narrative summary */}
                       {day.summary && (
-                        <p className="text-[10.5px] text-slate-600 leading-snug italic bg-emerald-50/40 px-2 py-1 rounded-md border border-emerald-100/60 line-clamp-2">
+                        <p className="text-[10.5px] text-slate-600 leading-snug italic bg-emerald-50/40 px-2 py-1 rounded-md border border-emerald-100/60">
                           {day.summary}
                         </p>
                       )}
@@ -525,16 +602,14 @@ export const PdfTemplate: React.FC<PdfTemplateProps> = ({ trip }) => {
                           <p className="text-[10.5px] text-slate-400 italic">Day reserved at leisure / scenic road travel relaxation.</p>
                         ) : (
                           <div className="relative pl-3.5 py-0.5">
-                            {/* Continuous vertical timeline line connecting all stops */}
-                            {selectedActs.slice(0, 4).length > 1 && (
-                              <div 
-                                className="absolute left-[4px] top-2 bottom-2 w-0.5 bg-teal-600/30 rounded-full" 
-                                aria-hidden="true" 
-                              />
-                            )}
+                            {/* Continuous vertical timeline line connecting all stops + stay row */}
+                            <div 
+                              className="absolute left-[4px] top-2 bottom-2 w-0.5 bg-teal-600/30 rounded-full" 
+                              aria-hidden="true" 
+                            />
 
                             <div className="space-y-1.5">
-                              {selectedActs.slice(0, 4).map((act) => (
+                              {selectedActs.slice(0, MAX_ACTS_SHOWN).map((act) => (
                                 <div key={act.id} className="relative flex items-start gap-2.5">
                                   {/* Small, solid teal dot (node) for each stop */}
                                   <div className="relative z-10 flex items-center justify-center shrink-0 mt-1 -ml-3.5">
@@ -547,14 +622,37 @@ export const PdfTemplate: React.FC<PdfTemplateProps> = ({ trip }) => {
                                       {act.title}
                                     </div>
                                     {act.description && (
-                                      <p className="text-[10px] text-slate-500 mt-0.5 line-clamp-1 leading-snug">
+                                      <p className="text-[10px] text-slate-600 mt-0.5 leading-snug break-words">
                                         {act.description}
                                       </p>
                                     )}
                                   </div>
                                 </div>
                               ))}
+
+                              {/* Overnight Stay — final row in the timeline */}
+                              {day.overnightStay && (
+                                <div className="relative flex items-center gap-2.5">
+                                  <div className="relative z-10 flex items-center justify-center shrink-0 -ml-3.5">
+                                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-700 ring-2 ring-white shadow-2xs" />
+                                  </div>
+                                  <div className="flex-1 min-w-0 flex items-center gap-1.5 bg-emerald-50 border border-emerald-200 rounded-lg px-2.5 py-1 shadow-2xs">
+                                    <Hotel className="w-3 h-3 text-emerald-700 shrink-0" />
+                                    <span className="text-[10px] font-semibold text-emerald-900">Overnight Stay:</span>
+                                    <span className="text-[10px] text-emerald-800 font-bold truncate">{day.overnightStay}</span>
+                                  </div>
+                                </div>
+                              )}
                             </div>
+                          </div>
+                        )}
+
+                        {/* Overnight Stay for days with no activities (leisure days) */}
+                        {selectedActs.length === 0 && day.overnightStay && (
+                          <div className="flex items-center gap-1.5 mt-1.5 bg-emerald-50 border border-emerald-200 rounded-lg px-2.5 py-1 shadow-2xs">
+                            <Hotel className="w-3 h-3 text-emerald-700 shrink-0" />
+                            <span className="text-[10px] font-semibold text-emerald-900">Overnight Stay:</span>
+                            <span className="text-[10px] text-emerald-800 font-bold truncate">{day.overnightStay}</span>
                           </div>
                         )}
                       </div>
@@ -590,7 +688,7 @@ export const PdfTemplate: React.FC<PdfTemplateProps> = ({ trip }) => {
           <div className="mb-3.5">
             <div className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-emerald-100 text-emerald-900 text-xs font-bold mb-1">
               <ShieldCheck className="w-3.5 h-3.5 text-emerald-800" />
-              Section 5: Package Commercials & Inclusions
+              Section 4: Package Commercials & Inclusions
             </div>
             <h2 className="text-xl font-bold text-slate-900">Booking Voucher & Scope of Services</h2>
           </div>
@@ -619,25 +717,43 @@ export const PdfTemplate: React.FC<PdfTemplateProps> = ({ trip }) => {
               </div>
               <div>
                 <span className="text-slate-400 text-[10px] block">Advance Received</span>
-                <strong className="text-emerald-400 font-semibold">{trip.advancePaid && trip.advancePaid !== '₹ 25,000.00' ? trip.advancePaid : '₹ 0/-'}</strong>
+                <strong className={hasAdvancePaid ? 'text-emerald-400 font-extrabold' : 'text-slate-400'}>
+                  {hasAdvancePaid ? `${trip.advancePaid} (Paid)` : '₹ 0/-'}
+                </strong>
               </div>
               <div>
-                <span className="text-slate-400 text-[10px] block">Booking Advance ({advancePct}%)</span>
-                <strong className="text-amber-300">₹ {advanceAmount.toLocaleString('en-IN')}/-</strong>
+                <span className="text-slate-400 text-[10px] block">Booking Status</span>
+                <strong className={isConfirmed ? 'text-emerald-300 font-extrabold' : 'text-amber-300 font-bold'}>
+                  {isConfirmed ? 'Confirmed' : (trip.bookingStatus || 'Under Review')}
+                </strong>
               </div>
             </div>
           </div>
 
           {/* Payment Milestone Notice on Voucher */}
-          <div className="mb-3 p-2.5 bg-emerald-50/70 border border-emerald-200 rounded-xl text-xs text-slate-700 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-emerald-600"></span>
-              <span><strong>Advance Milestone:</strong> {advancePct}% (₹ {advanceAmount.toLocaleString('en-IN')}/-) due on or before 30 days before tour start</span>
+          {hasAdvancePaid || isConfirmed ? (
+            <div className="mb-3 p-2.5 bg-emerald-50 border border-emerald-300 rounded-xl text-xs text-slate-800 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-600 shrink-0"></span>
+                <span>
+                  <strong>Booking Confirmed:</strong> {hasAdvancePaid ? `Advance payment of ${trip.advancePaid} received & verified.` : 'Hotel reservations secured.'}
+                </span>
+              </div>
+              <div className="text-[11px] font-bold text-emerald-950 bg-emerald-100/90 px-2.5 py-0.5 rounded-md border border-emerald-300">
+                Balance on Arrival: {trip.balancePayable || `₹ ${balancePayable.toLocaleString('en-IN')}/-`}
+              </div>
             </div>
-            <div className="text-[11px] font-bold text-emerald-900">
-              Balance ({balancePct}%): ₹ {balancePayable.toLocaleString('en-IN')}/-
+          ) : (
+            <div className="mb-3 p-2.5 bg-emerald-50/70 border border-emerald-200 rounded-xl text-xs text-slate-700 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-emerald-600"></span>
+                <span><strong>Advance Milestone:</strong> {advancePct}% (₹ {advanceAmount.toLocaleString('en-IN')}/-) due on or before 30 days before tour start</span>
+              </div>
+              <div className="text-[11px] font-bold text-emerald-900">
+                Balance: ₹ {balancePayable.toLocaleString('en-IN')}/-
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Inclusions and Exclusions side by side */}
           <div className="grid grid-cols-2 gap-3.5">
@@ -714,11 +830,11 @@ export const PdfTemplate: React.FC<PdfTemplateProps> = ({ trip }) => {
         <div className="flex flex-col">
           <PageHeader pageNum={pageCounter} />
 
-          {/* SECTION 6: BANK ACCOUNT INFORMATION + DYNAMIC UPI PAYMENT */}
+          {/* SECTION 5: BANK ACCOUNT INFORMATION + DYNAMIC UPI PAYMENT */}
           <div className="mb-3.5">
             <div className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-emerald-100 text-emerald-900 text-xs font-bold mb-1">
               <Building2 className="w-3.5 h-3.5 text-emerald-800" />
-              Section 6: Official Bank Account & Payment Coordinates
+              Section 5: Official Bank Account & Payment Coordinates
             </div>
             <h2 className="text-xl font-bold text-slate-900">Remittance & Payment Transfer Coordinates</h2>
           </div>
@@ -760,7 +876,20 @@ export const PdfTemplate: React.FC<PdfTemplateProps> = ({ trip }) => {
 
                 {/* Direct Pay Link on the position of official UPI ID & External UPI Badges */}
                 <div className="pt-2.5 border-t border-emerald-800/80 space-y-2">
-                  {isUpiEligible ? (
+                  {hasAdvancePaid ? (
+                    <div className="p-3 rounded-xl bg-emerald-900/80 border border-emerald-500/80 text-white space-y-1">
+                      <div className="flex items-center gap-1.5 text-emerald-300 font-bold text-xs uppercase tracking-wide">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                        <span>Advance Payment Received & Verified</span>
+                      </div>
+                      <div className="text-sm font-black text-white">
+                        {trip.advancePaid} Received
+                      </div>
+                      <p className="text-[10px] text-emerald-200/90 leading-tight">
+                        Booking voucher confirmed. Balance payable on tour arrival: <strong>{trip.balancePayable || `₹ ${balancePayable.toLocaleString('en-IN')}/-`}</strong>
+                      </p>
+                    </div>
+                  ) : isUpiEligible ? (
                     <div>
                       <div className="flex items-center gap-2 mb-1.5">
                         <a
@@ -769,7 +898,7 @@ export const PdfTemplate: React.FC<PdfTemplateProps> = ({ trip }) => {
                           rel="noopener noreferrer"
                           className="inline-flex items-center gap-2 px-3.5 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl text-xs font-bold shadow-sm transition-all hover:scale-[1.02]"
                         >
-                          <span>Direct Link to Pay {advancePct}% Advance (₹ {advanceAmount.toLocaleString('en-IN')})</span>
+                          <span>Click here to Pay Advance (₹ {advanceAmount.toLocaleString('en-IN')})</span>
                           <ExternalLink className="w-3.5 h-3.5 text-emerald-200" />
                         </a>
                       </div>
@@ -790,9 +919,24 @@ export const PdfTemplate: React.FC<PdfTemplateProps> = ({ trip }) => {
                 </div>
               </div>
 
-              {/* UPI QR Code OR 1 Lakh Bank Transfer Notice */}
+              {/* UPI QR Code OR Verified Receipt Notice */}
               <div className="col-span-5 bg-white text-slate-900 rounded-xl p-3.5 text-center shadow-xs flex flex-col items-center justify-center min-h-[190px]">
-                {isUpiEligible ? (
+                {hasAdvancePaid ? (
+                  <div className="p-2 text-center space-y-2">
+                    <div className="w-12 h-12 rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center mx-auto border-2 border-emerald-400">
+                      <CheckCircle2 className="w-7 h-7 text-emerald-600 stroke-[2.5]" />
+                    </div>
+                    <div className="text-xs font-black uppercase text-emerald-950 tracking-wider">
+                      Advance Paid
+                    </div>
+                    <div className="text-sm font-black text-emerald-700">
+                      {trip.advancePaid}
+                    </div>
+                    <p className="text-[10px] text-slate-600 leading-tight">
+                      Official booking voucher activated. Room allocations & chauffeur scheduled.
+                    </p>
+                  </div>
+                ) : isUpiEligible ? (
                   <>
                     <div className="text-[11px] font-bold text-slate-800 uppercase tracking-wider mb-1 flex items-center gap-1">
                       <QrCode className="w-3.5 h-3.5 text-emerald-700" />
@@ -822,7 +966,7 @@ export const PdfTemplate: React.FC<PdfTemplateProps> = ({ trip }) => {
                       </div>
                     )}
                     <div className="text-[10px] font-bold text-emerald-900">
-                      {advancePct}% Advance: ₹ {advanceAmount.toLocaleString('en-IN')}/-
+                      Advance: ₹ {advanceAmount.toLocaleString('en-IN')}/-
                     </div>
                     <div className="text-[9px] text-slate-500 mt-0.5">
                       Scan or tap with GPay, PhonePe, Paytm or any UPI App
@@ -859,11 +1003,11 @@ export const PdfTemplate: React.FC<PdfTemplateProps> = ({ trip }) => {
               <ul className="text-slate-700 space-y-2 text-[11px] leading-relaxed">
                 <li className="flex items-start gap-1.5">
                   <span className="text-emerald-700 font-bold">•</span>
-                  <span><strong>On or before 30 days before service starts:</strong> {advancePct}% booking advance (<strong>₹ {advanceAmount.toLocaleString('en-IN')}/-</strong>).</span>
+                  <span><strong>On or before 30 days before service starts:</strong> Booking advance (<strong>₹ {advanceAmount.toLocaleString('en-IN')}/-</strong>).</span>
                 </li>
                 <li className="flex items-start gap-1.5">
                   <span className="text-emerald-700 font-bold">•</span>
-                  <span><strong>Balance payable on arrival / 10 days before tour:</strong> Remaining {balancePct}% (<strong>₹ {balancePayable.toLocaleString('en-IN')}/-</strong>).</span>
+                  <span><strong>Balance Payable:</strong> <strong>₹ {balancePayable.toLocaleString('en-IN')}/-</strong>.</span>
                 </li>
               </ul>
             </div>
@@ -898,7 +1042,7 @@ export const PdfTemplate: React.FC<PdfTemplateProps> = ({ trip }) => {
           <div className="mb-3.5">
             <div className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-emerald-100 text-emerald-900 text-xs font-bold mb-1">
               <ShieldCheck className="w-3.5 h-3.5 text-emerald-800" />
-              Section 7: Standard Booking Terms & Cancellation Guidelines
+              Section 6: Standard Booking Terms & Cancellation Guidelines
             </div>
             <h2 className="text-xl font-bold text-slate-900">Standard Booking Terms & Operational Guidelines</h2>
             <p className="text-xs text-slate-500 mt-0.5">
@@ -1007,7 +1151,7 @@ export const PdfTemplate: React.FC<PdfTemplateProps> = ({ trip }) => {
           <div className="mb-3">
             <div className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-emerald-100 text-emerald-900 text-xs font-bold mb-1">
               <Palmtree className="w-3.5 h-3.5 text-emerald-800" />
-              Section 8: Kerala Travel Essentials, Useful Tips & About Us
+              Section 7: Kerala Travel Essentials, Useful Tips & About Us
             </div>
             <h2 className="text-xl font-bold text-slate-900">Important Guest Information & Verified Agency Profile</h2>
             <p className="text-xs text-slate-500 mt-0.5">
@@ -1057,7 +1201,7 @@ export const PdfTemplate: React.FC<PdfTemplateProps> = ({ trip }) => {
                 Your assigned trip manager will monitor your journey from arrival to airport departure. Driver details, vehicle registration number, and pickup coordinates are sent via WhatsApp 24 hours prior to travel.
               </p>
               <div className="text-[11px] text-emerald-900 font-semibold pt-1">
-                12/7 Operations Helpline: <strong>+91 91435 43444</strong>
+                12/7 Operations Helpline: <strong>+91 91435 43666</strong>
               </div>
             </div>
 
@@ -1085,7 +1229,7 @@ export const PdfTemplate: React.FC<PdfTemplateProps> = ({ trip }) => {
               TRAVEL CARE TOURS PVT LTD • Ground Flr, Mannath Bld, 36/267 Seaport-Airport Rd, Thrikkakara, Ernakulam, Kerala - 682021
             </p>
             <div className="text-[10.5px] text-emerald-200 mt-1 font-semibold">
-              Web: www.travelcaretours.in • Email: travelcare598@gmail.com • Central Desk: +91 91435 43444
+              Web: www.travelcaretours.in • Email: travelcare598@gmail.com • Central Desk: +91 91435 43666
             </div>
           </div>
         </div>

@@ -105,22 +105,37 @@ function createUniqueId(prefix = 'acc'): string {
 // Helper to parse dates in formats like "19th Sept 2026", "2026-09-19", "19/09/2026"
 function parseDateFlexible(dateStr: string): Date | null {
   if (!dateStr || !dateStr.trim()) return null;
-  const cleaned = dateStr.replace(/(\d+)(st|nd|rd|th)/gi, '$1').trim();
-  const parsed = new Date(cleaned);
-  if (!isNaN(parsed.getTime())) return parsed;
+  const str = dateStr.trim();
 
-  const parts = cleaned.split(/[\/\-\.]/);
+  // 1. Direct YYYY-MM-DD (construct using local midnight, NOT UTC)
+  const isoMatch = str.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if (isoMatch) {
+    const y = parseInt(isoMatch[1], 10);
+    const m = parseInt(isoMatch[2], 10) - 1;
+    const d = parseInt(isoMatch[3], 10);
+    const dt = new Date(y, m, d);
+    if (!isNaN(dt.getTime())) return dt;
+  }
+
+  // 2. Format with ordinal e.g. "19th Sept 2026", "19th September 2026"
+  const cleaned = str.replace(/(\d+)(st|nd|rd|th)/gi, '$1').trim();
+  const parsed = new Date(cleaned);
+  if (!isNaN(parsed.getTime())) {
+    return new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate());
+  }
+
+  // 3. DD/MM/YYYY or DD-MM-YYYY
+  const parts = cleaned.split(/[\/\-\.\s]+/);
   if (parts.length === 3) {
     const p0 = parseInt(parts[0], 10);
     const p1 = parseInt(parts[1], 10);
     const p2 = parseInt(parts[2], 10);
     if (p2 > 1000) {
-      const d = new Date(p2, p1 - 1, p0);
-      if (!isNaN(d.getTime())) return d;
-    }
-    if (p0 > 1000) {
-      const d = new Date(p0, p1 - 1, p2);
-      if (!isNaN(d.getTime())) return d;
+      const dt = new Date(p2, p1 - 1, p0);
+      if (!isNaN(dt.getTime())) return dt;
+    } else if (p0 > 1000) {
+      const dt = new Date(p0, p1 - 1, p2);
+      if (!isNaN(dt.getTime())) return dt;
     }
   }
   return null;
@@ -141,10 +156,10 @@ function toDateInputValue(dateStr: string): string {
 }
 
 // Format date into human-readable e.g. "19th Sept 2026"
-function formatDateDisplay(dateStr: string): string {
-  if (!dateStr || !dateStr.trim()) return '';
-  const d = parseDateFlexible(dateStr);
-  if (!d || isNaN(d.getTime())) return dateStr;
+function formatDateDisplay(input: string | Date | null | undefined): string {
+  if (!input) return '';
+  const d = input instanceof Date ? input : parseDateFlexible(String(input));
+  if (!d || isNaN(d.getTime())) return typeof input === 'string' ? input : '';
   const day = d.getDate();
   const suffix = (day === 1 || day === 21 || day === 31) ? 'st' :
                  (day === 2 || day === 22) ? 'nd' :
@@ -167,6 +182,11 @@ function calculateNightsBetween(pickupStr: string, dropoffStr: string): number |
   return null;
 }
 
+// Add days to a Date object safely in local time
+function addDaysToDate(baseDate: Date, days: number): Date {
+  return new Date(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate() + days);
+}
+
 // Calculate sequential check-in dates for accommodation items starting from pickupDate
 function calculateSequentialCheckInDates(
   pickupDateStr: string,
@@ -177,9 +197,8 @@ function calculateSequentialCheckInDates(
 
   let cumulativeDays = 0;
   return accommodations.map((acc) => {
-    const d = new Date(base.getTime());
-    d.setDate(d.getDate() + cumulativeDays);
-    const dateFormatted = formatDateDisplay(d.toISOString().slice(0, 10));
+    const d = addDaysToDate(base, cumulativeDays);
+    const dateFormatted = formatDateDisplay(d);
     cumulativeDays += Math.max(1, Number(acc.nights) || 1);
     return {
       ...acc,
@@ -192,15 +211,8 @@ function calculateSequentialCheckInDates(
 function calculateDropoffFromPickupAndNights(pickupStr: string, nights: number): string {
   const d = parseDateFlexible(pickupStr);
   if (!d) return '';
-  d.setDate(d.getDate() + Math.max(1, nights));
-  return formatDateDisplay(d.toISOString().slice(0, 10));
-}
-
-// Add days to a Date object safely
-function addDaysToDate(baseDate: Date, days: number): Date {
-  const res = new Date(baseDate.getTime());
-  res.setDate(res.getDate() + days);
-  return res;
+  const dropoff = addDaysToDate(d, Math.max(1, nights));
+  return formatDateDisplay(dropoff);
 }
 
 // Automatically adjust accommodation stops so the number of accommodation rows exactly reflects the target trip nights
@@ -276,7 +288,7 @@ function syncAccommodationsToTargetDuration(
   const usedIds = new Set<string>();
   return finalUnits.map((unit, idx) => {
     const checkIn = addDaysToDate(baseDate, idx);
-    const formattedCheckIn = formatDateDisplay(checkIn.toISOString().slice(0, 10));
+    const formattedCheckIn = formatDateDisplay(checkIn);
     let accId = unit.sourceId;
     if (!accId || usedIds.has(accId)) {
       accId = createUniqueId('acc');
@@ -314,7 +326,22 @@ export function syncDaysWithAccommodationsAndPickup(
     const prevAcc = aIdx > 0 ? accommodations[aIdx - 1] : null;
 
     const normAcc = acc.destination.trim().toLowerCase();
-    const destCatalog = INITIAL_DESTINATIONS_CATALOG.find((c) => {
+    
+    // Resolve destination catalog from localStorage pool if client-side, falling back to INITIAL_DESTINATIONS_CATALOG
+    let catalogPool = INITIAL_DESTINATIONS_CATALOG;
+    if (typeof window !== 'undefined') {
+      try {
+        const savedCat = localStorage.getItem('tct_destinations_catalog');
+        if (savedCat) {
+          const parsed = JSON.parse(savedCat);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            catalogPool = parsed;
+          }
+        }
+      } catch (err) {}
+    }
+
+    const destCatalog = catalogPool.find((c) => {
       const normCat = c.destination.trim().toLowerCase();
       if (normCat.includes(normAcc) || normAcc.includes(normCat)) return true;
       if (normAcc.includes('cochin') && normCat.includes('kochi')) return true;
@@ -360,19 +387,30 @@ export function syncDaysWithAccommodationsAndPickup(
 
     for (let n = 0; n < nightsCount; n++) {
       const dayNum = currentDayNumber;
-      const dayDate = formatDateDisplay(addDaysToDate(baseDate, dayOffset).toISOString().slice(0, 10));
-      const existing = existingDays.find((d) => d.dayNumber === dayNum);
-      const isSameDestAsExisting =
-        existing &&
-        existing.destination &&
-        (existing.destination.toLowerCase().includes(acc.destination.toLowerCase()) ||
-          acc.destination.toLowerCase().includes(existing.destination.toLowerCase()));
+      const dayDate = formatDateDisplay(addDaysToDate(baseDate, dayOffset));
+      
+      // Match existing day: first by exact day number if destination matches, else fallback to any day matching this destination
+      const existingAtDay = existingDays.find((d) => d.dayNumber === dayNum);
+      const isExactDestMatch =
+        existingAtDay &&
+        existingAtDay.destination &&
+        (existingAtDay.destination.toLowerCase().includes(acc.destination.toLowerCase()) ||
+          acc.destination.toLowerCase().includes(existingAtDay.destination.toLowerCase()));
+
+      const existingAtDest = existingDays.find((d) =>
+        d.destination &&
+        (d.destination.toLowerCase().includes(acc.destination.toLowerCase()) ||
+          acc.destination.toLowerCase().includes(d.destination.toLowerCase()))
+      );
+
+      const existing = isExactDestMatch ? existingAtDay : existingAtDest;
+      const isSameDestAsExisting = Boolean(existing);
 
       let dayTitle = '';
       let dayRoute = '';
       let daySummary = '';
 
-      if (isSameDestAsExisting && existing.title) {
+      if (isSameDestAsExisting && existing?.title) {
         dayTitle = existing.title;
         dayRoute = existing.route || `${acc.destination} Sightseeing Corridor`;
         daySummary = existing.summary || `Enjoy scenic experiences and relaxing overnight stay in ${acc.destination}.`;
@@ -394,13 +432,27 @@ export function syncDaysWithAccommodationsAndPickup(
 
       // If destination matches existing day, preserve user's activities; otherwise load fresh activities for this destination
       const activitiesToUse =
-        isSameDestAsExisting && existing.activities && existing.activities.length > 0
-          ? existing.activities
+        isSameDestAsExisting && existing?.activities && existing.activities.length > 0
+          ? [...existing.activities]
           : defaultActivities.map((act, idx) => ({
               ...act,
               id: `act-${dayNum}-${idx + 1}`,
               isSelected: idx < 3,
             }));
+
+      // In addition, ensure all custom activities added by the user for this destination are retained
+      const existingCustom = existingDays
+        .filter((d) => d.destination && (
+          d.destination.toLowerCase().includes(normAcc) || normAcc.includes(d.destination.toLowerCase())
+        ))
+        .flatMap((d) => d.activities || [])
+        .filter((a) => a.isCustom);
+
+      for (const customAct of existingCustom) {
+        if (!activitiesToUse.some((a) => a.title.toLowerCase() === customAct.title.toLowerCase())) {
+          activitiesToUse.push(customAct);
+        }
+      }
 
       newDays.push({
         dayNumber: dayNum,
@@ -421,7 +473,7 @@ export function syncDaysWithAccommodationsAndPickup(
 
   // Final Departure Day
   const totalDays = currentDayNumber;
-  const departureDate = formatDateDisplay(addDaysToDate(baseDate, dayOffset).toISOString().slice(0, 10));
+  const departureDate = formatDateDisplay(addDaysToDate(baseDate, dayOffset));
   const existingDeparture = existingDays.find(
     (d) => d.destination?.toLowerCase() === 'departure' || d.dayNumber === totalDays
   );
@@ -528,14 +580,8 @@ export function generateDynamicInclusionsAndExclusions(
     }
   }
 
-  const hotelLines = hotelGroups.map((g) => {
-    const nightPrefix = g.nights > 1 ? `${String(g.nights).padStart(2, '0')} Nights` : '01 Night';
-    if (g.hotelName.toLowerCase().includes('houseboat')) {
-      return `${nightPrefix} private Premium Houseboat cruise at ${g.destination} with all meals`;
-    }
-    const roomText = g.roomCategory ? ` (${g.roomCategory})` : '';
-    return `${nightPrefix} accommodation at ${g.hotelName} ${g.destination}${roomText}`;
-  });
+  // 3. Stays statement - concise default instead of repeating every hotel name & room category
+  const defaultStaysLine = 'Handpicked stays across premium hill resorts, a private beachfront property, and an exclusive Alleppey backwater houseboat.';
 
   // 4. Meal Plan Statement
   const uniqueMealPlans = Array.from(new Set(accommodations.map((a) => a.mealPlan?.trim()).filter(Boolean)));
@@ -551,9 +597,9 @@ export function generateDynamicInclusionsAndExclusions(
 
   // Assemble dynamic core inclusions
   const dynamicInclusionLines = [
+    defaultStaysLine,
     vehicleLine,
     cabLine,
-    ...hotelLines,
     mealPlanText,
     ...standardInclusions,
   ];
@@ -564,6 +610,7 @@ export function generateDynamicInclusionsAndExclusions(
     return !l.includes('at disposal as per itinerary') &&
            !l.includes('driver bata') &&
            !l.includes('chauffeur allowance') &&
+           !l.includes('handpicked stays across') &&
            !l.includes('accommodation at') &&
            !l.includes('houseboat cruise') &&
            !l.includes('meal plan:') &&
@@ -616,6 +663,56 @@ export const TripDetailsForm: React.FC<TripDetailsFormProps> = ({
   const [showTitleSuggestions, setShowTitleSuggestions] = useState<boolean>(false);
   const [isEditingTopTitle, setIsEditingTopTitle] = useState<boolean>(false);
   const [topTitleDraft, setTopTitleDraft] = useState<string>('');
+
+  // Helper to parse price strings safely
+  const parseCostVal = (val: string | number | undefined): number => {
+    if (typeof val === 'number') return isNaN(val) ? 0 : Math.round(val);
+    if (!val) return 0;
+    const cleaned = String(val).replace(/[₹,\s]/g, '').trim();
+    const match = cleaned.match(/\d+(\.\d+)?/);
+    if (!match) return 0;
+    const num = parseFloat(match[0]);
+    return isNaN(num) || num <= 0 ? 0 : Math.round(num);
+  };
+
+  const isAdvancePaid = (() => {
+    const num = parseCostVal(trip.advancePaid);
+    return num > 0;
+  })();
+
+  const handleToggleAdvancePaid = () => {
+    if (isAdvancePaid) {
+      onUpdateTrip({
+        ...trip,
+        advancePaid: '₹ 0.00',
+        balancePayable: trip.totalPackageCost || '₹ 0.00',
+      });
+    } else {
+      const total = parseCostVal(trip.totalPackageCost);
+      const advPct = typeof trip.advancePercentage === 'number' && trip.advancePercentage > 0 ? trip.advancePercentage : 40;
+      const advAmount = total > 0 ? Math.round(total * (advPct / 100)) : 25000;
+      const balAmount = Math.max(0, total - advAmount);
+      onUpdateTrip({
+        ...trip,
+        advancePaid: `₹ ${advAmount.toLocaleString('en-IN')}.00`,
+        balancePayable: `₹ ${balAmount.toLocaleString('en-IN')}.00`,
+        bookingStatus: 'Confirmed',
+      });
+    }
+  };
+
+  const handleSetAdvancePercentage = (pct: number) => {
+    const total = parseCostVal(trip.totalPackageCost);
+    const advAmount = total > 0 ? Math.round(total * (pct / 100)) : 25000;
+    const balAmount = Math.max(0, total - advAmount);
+    onUpdateTrip({
+      ...trip,
+      advancePercentage: pct,
+      advancePaid: `₹ ${advAmount.toLocaleString('en-IN')}.00`,
+      balancePayable: `₹ ${balAmount.toLocaleString('en-IN')}.00`,
+      bookingStatus: 'Confirmed',
+    });
+  };
 
   // AI Suggest Title handler reflecting the current routes & duration
   const handleSuggestTitle = async (applyFirstImmediately: boolean = true) => {
@@ -2282,16 +2379,53 @@ export const TripDetailsForm: React.FC<TripDetailsFormProps> = ({
           </div>
 
           <div>
-            <label className="block text-xs sm:text-sm font-bold text-slate-700 mb-1.5">
-              Advance Paid *
-            </label>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="text-xs sm:text-sm font-bold text-slate-700">
+                Advance Paid *
+              </label>
+              <button
+                type="button"
+                onClick={handleToggleAdvancePaid}
+                className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-md transition-all flex items-center gap-1 cursor-pointer ${
+                  isAdvancePaid
+                    ? 'bg-emerald-600 text-white shadow-2xs hover:bg-emerald-700'
+                    : 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200 border border-emerald-300'
+                }`}
+                title={isAdvancePaid ? "Advance is marked as paid. Click to reset." : "Click to auto-calculate and mark advance as paid"}
+              >
+                <CreditCard className="w-3 h-3" />
+                <span>{isAdvancePaid ? '✓ Paid' : '+ Mark Paid'}</span>
+              </button>
+            </div>
             <input
               type="text"
               value={trip.advancePaid || ''}
               onChange={(e) => onUpdateTrip({ ...trip, advancePaid: e.target.value })}
-              className="w-full text-sm font-semibold text-slate-800 px-3.5 py-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-600 focus:outline-hidden"
+              className={`w-full text-sm font-bold px-3.5 py-2.5 border rounded-xl focus:ring-2 focus:ring-emerald-600 focus:outline-hidden ${
+                isAdvancePaid
+                  ? 'border-emerald-500 bg-emerald-50/50 text-emerald-950 font-extrabold'
+                  : 'border-slate-300 text-slate-800'
+              }`}
               placeholder="₹ 25,000.00"
             />
+            {/* Quick Advance Percentage Chips */}
+            <div className="flex items-center gap-1 mt-1.5">
+              {[25, 40, 50, 100].map((pct) => (
+                <button
+                  key={pct}
+                  type="button"
+                  onClick={() => handleSetAdvancePercentage(pct)}
+                  className={`text-[10px] font-extrabold px-1.5 py-0.5 rounded-md transition-all cursor-pointer ${
+                    trip.advancePercentage === pct
+                      ? 'bg-emerald-600 text-white shadow-2xs'
+                      : 'bg-slate-100 text-slate-600 hover:bg-emerald-50 hover:text-emerald-800 border border-slate-200'
+                  }`}
+                  title={`Set ${pct}% advance`}
+                >
+                  {pct}%
+                </button>
+              ))}
+            </div>
           </div>
 
           <div>
@@ -2311,15 +2445,35 @@ export const TripDetailsForm: React.FC<TripDetailsFormProps> = ({
             <label className="block text-xs sm:text-sm font-bold text-slate-700 mb-1.5">
               Booking Status
             </label>
-            <CustomSelect
-              value={trip.bookingStatus || 'Confirmed'}
-              onChange={(val) => onUpdateTrip({ ...trip, bookingStatus: val as any })}
-              options={['Confirmed', 'Draft', 'Under Review', 'Payment Pending']}
-              theme="emerald"
-              size="lg"
-              triggerClassName="font-bold text-emerald-900"
-              ariaLabel="Booking Status"
-            />
+            {/* Segmented Buttons: Under Review vs Confirmed */}
+            <div className="grid grid-cols-2 gap-1.5 p-1 bg-slate-100/90 rounded-xl border border-slate-200">
+              <button
+                type="button"
+                onClick={() => onUpdateTrip({ ...trip, bookingStatus: 'Under Review' })}
+                className={`py-2 px-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                  (trip.bookingStatus || 'Confirmed') === 'Under Review'
+                    ? 'bg-amber-500 text-amber-950 shadow-2xs font-black ring-1 ring-amber-400'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-white/80'
+                }`}
+                title="Mark status as Under Review (Proposed Quotation)"
+              >
+                <Search className="w-3.5 h-3.5" />
+                <span className="truncate">Under Review</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => onUpdateTrip({ ...trip, bookingStatus: 'Confirmed' })}
+                className={`py-2 px-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                  (trip.bookingStatus || 'Confirmed') === 'Confirmed'
+                    ? 'bg-emerald-600 text-white shadow-2xs font-black ring-1 ring-emerald-500'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-white/80'
+                }`}
+                title="Mark status as Confirmed"
+              >
+                <Check className="w-3.5 h-3.5" />
+                <span className="truncate">Confirmed</span>
+              </button>
+            </div>
           </div>
 
           <div className="sm:col-span-2 md:col-span-4">

@@ -101,9 +101,7 @@ function createId(prefix = 'acc'): string {
 
 // Add days safely to a Date
 function addDays(baseDate: Date, days: number): Date {
-  const res = new Date(baseDate.getTime());
-  res.setDate(res.getDate() + days);
-  return res;
+  return new Date(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate() + days);
 }
 
 // Flexible date parser supporting "15 Oct 2026", "15th Oct", "2026-10-15", "15/10/2026"
@@ -397,6 +395,58 @@ export const WhatsappLeadsView: React.FC<WhatsappLeadsViewProps> = ({
     if (typeof window !== 'undefined') {
       localStorage.removeItem('tct_current_lead_msg');
     }
+  };
+
+  // Editable Inclusions & Exclusions State & Handlers
+  const [newInclusionInput, setNewInclusionInput] = useState<string>('');
+  const [newExclusionInput, setNewExclusionInput] = useState<string>('');
+
+  const handleAddInclusion = (text?: string) => {
+    const val = (text ?? newInclusionInput).trim();
+    if (!val) return;
+    const updated = [...(trip.inclusions || []), val];
+    onUpdateTrip({ ...trip, inclusions: updated });
+    setNewInclusionInput('');
+  };
+
+  const handleEditInclusion = (idx: number, newText: string) => {
+    const updated = [...(trip.inclusions || [])];
+    updated[idx] = newText;
+    onUpdateTrip({ ...trip, inclusions: updated });
+  };
+
+  const handleRemoveInclusion = (idx: number) => {
+    const updated = (trip.inclusions || []).filter((_, i) => i !== idx);
+    onUpdateTrip({ ...trip, inclusions: updated });
+  };
+
+  const handleAddExclusion = (text?: string) => {
+    const val = (text ?? newExclusionInput).trim();
+    if (!val) return;
+    const updated = [...(trip.exclusions || []), val];
+    onUpdateTrip({ ...trip, exclusions: updated });
+    setNewExclusionInput('');
+  };
+
+  const handleEditExclusion = (idx: number, newText: string) => {
+    const updated = [...(trip.exclusions || [])];
+    updated[idx] = newText;
+    onUpdateTrip({ ...trip, exclusions: updated });
+  };
+
+  const handleRemoveExclusion = (idx: number) => {
+    const updated = (trip.exclusions || []).filter((_, i) => i !== idx);
+    onUpdateTrip({ ...trip, exclusions: updated });
+  };
+
+  const handleResyncInclusionsExclusions = () => {
+    const { inclusions, exclusions } = generateDynamicInclusionsAndExclusions(
+      trip.vehicleType,
+      trip.accommodations,
+      [],
+      []
+    );
+    onUpdateTrip({ ...trip, inclusions, exclusions });
   };
 
   // Compute total hotel B2B cost
@@ -1043,10 +1093,49 @@ export const WhatsappLeadsView: React.FC<WhatsappLeadsViewProps> = ({
       ? 'Room Only'
       : 'Buffet Breakfast';
 
+    const isConfirmed = (trip.bookingStatus || 'Confirmed') === 'Confirmed';
+    const hasAdvance = Boolean(
+      trip.advancePaid &&
+      trip.advancePaid !== '₹ 0/-' &&
+      trip.advancePaid !== '₹ 0.00' &&
+      trip.advancePaid !== '₹ 0' &&
+      trip.advancePaid.trim() !== ''
+    );
+
+    const docTitle = isConfirmed 
+      ? '*Official Kerala Tour Confirmation & Itinerary*' 
+      : '*B2B Kerala Tour Quotation*';
+    const refLabel = isConfirmed ? 'Booking Ref:' : 'Quote Ref:';
+    const statusLine = isConfirmed 
+      ? '📌 *Booking Status:* ✅ CONFIRMED' 
+      : '📌 *Booking Status:* ⏳ UNDER REVIEW (Proposed Quotation)';
+
+    const paymentLine = (isConfirmed || hasAdvance) && trip.advancePaid && trip.advancePaid !== '₹ 0/-'
+      ? `💰 *TOTAL PACKAGE COST:* ${trip.totalPackageCost || `₹ ${finalTotalPackageCost.toLocaleString('en-IN')}/-`}\n💳 *PAYMENT STATUS:* ✅ Advance Paid: ${trip.advancePaid} (Received) | *Balance on Arrival:* ${trip.balancePayable || `₹ ${calculatedBalanceAmount.toLocaleString('en-IN')}/-`}`
+      : `💰 *TOTAL PACKAGE QUOTE:* ${trip.totalPackageCost || `₹ ${finalTotalPackageCost.toLocaleString('en-IN')}/-`}\n💳 *PAYMENT TERMS:* Advance (${advancePercentage}%): ₹ ${calculatedAdvanceAmount.toLocaleString('en-IN')}/- | *Balance:* ₹ ${calculatedBalanceAmount.toLocaleString('en-IN')}/-`;
+
+    const currentInclusions = trip.inclusions && trip.inclusions.length > 0
+      ? trip.inclusions
+      : [
+          'Handpicked stays across premium hill resorts, a private beachfront property, and an exclusive Alleppey backwater houseboat.',
+          `01 Sanitized AC ${trip.vehicleType} at disposal as per itinerary from arrival to departure`,
+          'Chauffeur allowances, driver bata, fuel charges, and parking fees (Tolls payable directly)',
+          `Meal Plan: ${mealDescription}`,
+          '24/7 on-tour coordination & operational assistance',
+        ];
+
+    const currentExclusions = trip.exclusions || [];
+
+    const inclusionsText = `✅ *KEY INCLUSIONS:*\n${currentInclusions.map((inc) => `• ${inc}`).join('\n')}`;
+    const exclusionsText = currentExclusions.length > 0 
+      ? `\n\n❌ *EXCLUSIONS:*\n${currentExclusions.map((exc) => `• ${exc}`).join('\n')}`
+      : '';
+
     return `🌴 *TRAVEL CARE TOURS PVT LTD* 🌴
-*B2B Kerala Tour Quotation*
+${docTitle}
 ---------------------------------------
-📋 *Quote Ref:* ${trip.voucherNumber || 'TCT-2026-Q0196'}
+📋 *${refLabel}* ${trip.voucherNumber || 'TCT-2026-Q0196'}
+${statusLine}
 👤 *Guest:* ${guestDisplayName}${guestPhone}
 👥 *Pax:* ${trip.adultsCount} Adults${childrenString}
 🗓️ *Duration:* ${trip.durationNights} Nights / ${trip.durationDays} Days
@@ -1057,17 +1146,12 @@ export const WhatsappLeadsView: React.FC<WhatsappLeadsViewProps> = ({
 🏨 *PROPOSED HOTEL STAYS & SCHEDULE:*
 ${hotelLines}
 
-💰 *TOTAL PACKAGE QUOTE:* ${trip.totalPackageCost || `₹ ${finalTotalPackageCost.toLocaleString('en-IN')}/-`}
+${paymentLine}
 *(Includes Accommodation, ${mealDescription}, Private AC Cab, Tolls, Parking, Driver Bata & GST)*
 
-✅ *KEY INCLUSIONS:*
-• Accommodation as per night schedule with specified meal plans (${activeMeal})
-• Exclusive AC vehicle for all transfers and daily sightseeing as per itinerary
-• Professional English/Hindi speaking tourist vehicle driver
-• Toll taxes, parking charges, interstate permit & fuel charges
-• 24/7 on-tour coordination & operational assistance
+${inclusionsText}${exclusionsText}
 
-📞 *Travel Care Tours Operations Desk:* +91 94477 82828
+📞 *Travel Care Tours Operations Desk:* +91 91435 43666
 🌐 Ernakulam, Kochi, Kerala | B2B Partner Desk`;
   };
 
@@ -3178,6 +3262,92 @@ ${hotelLines}
               </div>
             </div>
 
+            {/* Booking Status & Advance Controls */}
+            <div className="bg-white/10 rounded-xl p-2.5 border border-white/15 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold text-slate-300">Booking Status:</span>
+                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                  (trip.bookingStatus || 'Confirmed') === 'Confirmed'
+                    ? 'bg-emerald-400 text-emerald-950'
+                    : 'bg-amber-400 text-amber-950'
+                }`}>
+                  {(trip.bookingStatus || 'Confirmed') === 'Confirmed' ? '✅ Confirmed' : '⏳ Under Review'}
+                </span>
+              </div>
+              <div className="grid grid-cols-2 gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => onUpdateTrip({ ...trip, bookingStatus: 'Under Review' })}
+                  className={`py-1.5 px-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                    (trip.bookingStatus || 'Confirmed') === 'Under Review'
+                      ? 'bg-amber-400 text-amber-950 font-black shadow-xs ring-1 ring-amber-300'
+                      : 'bg-white/10 hover:bg-white/20 text-slate-300'
+                  }`}
+                  title="Mark status as Under Review (Proposed Quotation)"
+                >
+                  <span>⏳ Under Review</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onUpdateTrip({ ...trip, bookingStatus: 'Confirmed' })}
+                  className={`py-1.5 px-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                    (trip.bookingStatus || 'Confirmed') === 'Confirmed'
+                      ? 'bg-emerald-400 text-emerald-950 font-black shadow-xs ring-1 ring-emerald-300'
+                      : 'bg-white/10 hover:bg-white/20 text-slate-300'
+                  }`}
+                  title="Mark status as Confirmed"
+                >
+                  <Check className="w-3.5 h-3.5 stroke-[2.5]" />
+                  <span>Confirmed</span>
+                </button>
+              </div>
+
+              {/* Advance Paid Button */}
+              {(() => {
+                const isAdvPaid = Boolean(
+                  trip.advancePaid &&
+                  trip.advancePaid !== '₹ 0/-' &&
+                  trip.advancePaid !== '₹ 0.00' &&
+                  trip.advancePaid !== '₹ 0' &&
+                  trip.advancePaid.trim() !== ''
+                );
+                return (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (isAdvPaid) {
+                        onUpdateTrip({
+                          ...trip,
+                          advancePaid: '₹ 0/-',
+                          balancePayable: `₹ ${finalTotalPackageCost.toLocaleString('en-IN')}/-`,
+                        });
+                      } else {
+                        onUpdateTrip({
+                          ...trip,
+                          advancePaid: `₹ ${calculatedAdvanceAmount.toLocaleString('en-IN')}/-`,
+                          balancePayable: `₹ ${calculatedBalanceAmount.toLocaleString('en-IN')}/-`,
+                          bookingStatus: 'Confirmed',
+                        });
+                      }
+                    }}
+                    className={`w-full py-1.5 px-2.5 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-xs ${
+                      isAdvPaid
+                        ? 'bg-emerald-400 hover:bg-emerald-300 text-emerald-950 font-black'
+                        : 'bg-white/10 hover:bg-white/20 text-emerald-300 border border-emerald-400/40'
+                    }`}
+                    title={isAdvPaid ? "Advance is marked as paid. Click to reset." : "Click to mark advance as paid & confirm booking"}
+                  >
+                    <CreditCard className="w-3.5 h-3.5" />
+                    <span>
+                      {isAdvPaid
+                        ? `✓ Advance Paid (${trip.advancePaid})`
+                        : `💳 Mark Advance Paid (₹ ${calculatedAdvanceAmount.toLocaleString('en-IN')})`}
+                    </span>
+                  </button>
+                );
+              })()}
+            </div>
+
             {/* Agent WhatsApp Direct Send */}
             <div className="pt-0.5 space-y-1">
               <label className="text-[10px] sm:text-[11px] font-bold text-slate-300 flex items-center justify-between">
@@ -3238,7 +3408,179 @@ ${hotelLines}
         </div>
       </div>
 
-      {/* 6. Live WhatsApp Message Preview Card */}
+      {/* 6. Editable Package Inclusions & Exclusions */}
+      <div className="bg-white rounded-xl sm:rounded-2xl border border-slate-200 p-4 sm:p-6 shadow-xs space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center shrink-0">
+              <FileText className="w-4 h-4 text-emerald-800" />
+            </div>
+            <div>
+              <div className="font-bold text-slate-900 text-sm sm:text-base flex items-center gap-2">
+                <span>Package Inclusions & Exclusions</span>
+                <span className="text-[10px] font-bold bg-emerald-100 text-emerald-900 px-2 py-0.5 rounded-full border border-emerald-300/60">
+                  Live Editable
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-500">
+                Tailor inclusions and exclusions before sending the WhatsApp quotation or generating the PDF voucher.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleResyncInclusionsExclusions}
+              className="text-xs font-bold px-3 py-1.5 bg-slate-100 hover:bg-emerald-50 text-slate-700 hover:text-emerald-900 rounded-lg sm:rounded-xl transition-all border border-slate-200 flex items-center gap-1.5 shadow-2xs cursor-pointer active:scale-95"
+              title="Reset to standard default statements"
+            >
+              <RefreshCw className="w-3.5 h-3.5 text-emerald-700" />
+              <span>Reset Defaults</span>
+            </button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+          {/* Inclusions Card */}
+          <div className="border border-emerald-200/90 bg-emerald-50/20 rounded-xl p-3.5 sm:p-4 space-y-3 flex flex-col justify-between">
+            <div className="space-y-2.5">
+              <div className="flex items-center justify-between">
+                <div className="text-xs sm:text-sm font-bold text-emerald-950 uppercase tracking-wide flex items-center gap-1.5">
+                  <Check className="w-4 h-4 text-emerald-700 stroke-[3]" />
+                  <span>Package Inclusions ({trip.inclusions?.length || 0})</span>
+                </div>
+                <span className="text-[10px] text-emerald-700 font-semibold">Click text to edit</span>
+              </div>
+
+              <div className="space-y-1.5 max-h-72 overflow-y-auto pr-1">
+                {(trip.inclusions || []).map((inc, idx) => (
+                  <div 
+                    key={idx}
+                    className="flex items-center gap-2 bg-white border border-emerald-200 rounded-lg px-2.5 py-1.5 shadow-2xs hover:border-emerald-400 transition-colors group"
+                  >
+                    <span className="text-emerald-700 font-bold text-xs shrink-0 select-none">✓</span>
+                    <input
+                      type="text"
+                      value={inc}
+                      onChange={(e) => handleEditInclusion(idx, e.target.value)}
+                      className="flex-1 text-xs text-slate-800 bg-transparent border-none focus:outline-none focus:ring-1 focus:ring-emerald-400 rounded px-1 py-0.5 leading-snug"
+                      title="Click to edit inclusion"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveInclusion(idx)}
+                      className="text-slate-400 hover:text-rose-600 hover:bg-rose-50 p-1 rounded transition-colors shrink-0 cursor-pointer"
+                      title="Remove inclusion"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ))}
+
+                {(!trip.inclusions || trip.inclusions.length === 0) && (
+                  <p className="text-xs text-slate-400 italic p-3 text-center">No inclusions added yet. Add one below!</p>
+                )}
+              </div>
+            </div>
+
+            {/* Quick Add Inclusion */}
+            <form 
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleAddInclusion();
+              }}
+              className="flex items-center gap-1.5 pt-2 border-t border-emerald-200/60"
+            >
+              <input
+                type="text"
+                value={newInclusionInput}
+                onChange={(e) => setNewInclusionInput(e.target.value)}
+                placeholder="+ Type new inclusion and press enter..."
+                className="flex-1 text-xs bg-white border border-emerald-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 placeholder:text-slate-400"
+              />
+              <button
+                type="submit"
+                disabled={!newInclusionInput.trim()}
+                className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white rounded-lg text-xs font-bold transition-colors shrink-0 flex items-center gap-1 cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Add</span>
+              </button>
+            </form>
+          </div>
+
+          {/* Exclusions Card */}
+          <div className="border border-rose-200/90 bg-rose-50/20 rounded-xl p-3.5 sm:p-4 space-y-3 flex flex-col justify-between">
+            <div className="space-y-2.5">
+              <div className="flex items-center justify-between">
+                <div className="text-xs sm:text-sm font-bold text-rose-950 uppercase tracking-wide flex items-center gap-1.5">
+                  <span className="w-4 h-4 rounded-full bg-rose-100 text-rose-700 flex items-center justify-center font-bold text-[10px]">✕</span>
+                  <span>Package Exclusions ({trip.exclusions?.length || 0})</span>
+                </div>
+                <span className="text-[10px] text-rose-700 font-semibold">Click text to edit</span>
+              </div>
+
+              <div className="space-y-1.5 max-h-72 overflow-y-auto pr-1">
+                {(trip.exclusions || []).map((exc, idx) => (
+                  <div 
+                    key={idx}
+                    className="flex items-center gap-2 bg-white border border-rose-200 rounded-lg px-2.5 py-1.5 shadow-2xs hover:border-rose-400 transition-colors group"
+                  >
+                    <span className="text-rose-500 font-bold text-xs shrink-0 select-none">•</span>
+                    <input
+                      type="text"
+                      value={exc}
+                      onChange={(e) => handleEditExclusion(idx, e.target.value)}
+                      className="flex-1 text-xs text-slate-800 bg-transparent border-none focus:outline-none focus:ring-1 focus:ring-rose-400 rounded px-1 py-0.5 leading-snug"
+                      title="Click to edit exclusion"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveExclusion(idx)}
+                      className="text-slate-400 hover:text-rose-600 hover:bg-rose-50 p-1 rounded transition-colors shrink-0 cursor-pointer"
+                      title="Remove exclusion"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ))}
+
+                {(!trip.exclusions || trip.exclusions.length === 0) && (
+                  <p className="text-xs text-slate-400 italic p-3 text-center">No exclusions added yet. Add one below!</p>
+                )}
+              </div>
+            </div>
+
+            {/* Quick Add Exclusion */}
+            <form 
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleAddExclusion();
+              }}
+              className="flex items-center gap-1.5 pt-2 border-t border-rose-200/60"
+            >
+              <input
+                type="text"
+                value={newExclusionInput}
+                onChange={(e) => setNewExclusionInput(e.target.value)}
+                placeholder="+ Type new exclusion and press enter..."
+                className="flex-1 text-xs bg-white border border-rose-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 placeholder:text-slate-400"
+              />
+              <button
+                type="submit"
+                disabled={!newExclusionInput.trim()}
+                className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 disabled:opacity-40 text-white rounded-lg text-xs font-bold transition-colors shrink-0 flex items-center gap-1 cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Add</span>
+              </button>
+            </form>
+          </div>
+        </div>
+      </div>
+
+      {/* 7. Live WhatsApp Message Preview Card */}
       <div className="bg-white rounded-xl sm:rounded-2xl border border-slate-200 p-3.5 sm:p-6 shadow-xs space-y-2.5 sm:space-y-3">
         <div className="flex items-center justify-between border-b border-slate-100 pb-2.5 sm:pb-3 flex-wrap gap-2">
           <div className="flex items-center gap-2">

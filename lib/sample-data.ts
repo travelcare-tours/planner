@@ -8,7 +8,7 @@ export const COMPANY_DETAILS = {
   addressLine1: 'Ground Flr, Mannath Bld,',
   addressLine2: '36/267 Seaport-Airport Rd,',
   addressLine3: 'Thrikkakara Ernakulam, Kerala - 682021',
-  phone1: '+91 91435 43444',
+  phone1: '+91 91435 43666',
   phone2: '+91 91435 43666',
   email: 'travelcare598@gmail.com',
   website: 'www.travelcaretours.in',
@@ -369,9 +369,7 @@ export function getTodayFormattedDate(): string {
  * Add days to a Date.
  */
 export function addDaysToTripDate(base: Date, days: number): Date {
-  const res = new Date(base.getTime());
-  res.setDate(res.getDate() + days);
-  return res;
+  return new Date(base.getFullYear(), base.getMonth(), base.getDate() + days);
 }
 
 /**
@@ -442,9 +440,9 @@ const RAW_SAMPLE_TRIP: TripDetails = {
   marginCustomAmount: 6000,
   adjustmentAmount: 0,
   inclusions: [
+    'Handpicked stays across premium hill resorts, a private beachfront property, and an exclusive Alleppey backwater houseboat.',
     '01 Sanitized AC Sedan at disposal as per itinerary from arrival to departure',
     'Chauffeur allowances, driver bata, fuel charges, and parking fees (Tolls payable directly)',
-    'Accommodation on double sharing basis at confirmed hotels/resorts as per itinerary',
     'Meal Plan: CP (Buffet Breakfast) at hotels/resorts',
     'Traditional welcome drink on arrival at all hotels',
     '24/7 dedicated Travel Care Tours customer service helpline & local manager support',

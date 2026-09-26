@@ -71,7 +71,8 @@ import {
   Database,
   Table,
   MoveHorizontal,
-  MoveVertical
+  MoveVertical,
+  CreditCard
 } from 'lucide-react';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas-pro';
@@ -272,6 +273,27 @@ export function PlannerClient({ initialTab = 'whatsapp-leads' }: PlannerClientPr
               parsed.pickupDate || getTodayFormattedDate(),
               parsed.dropoffLocation || 'Thiruvananthapuram International Airport (TRV)'
             );
+          }
+
+          // 4. Inclusions migration: replace repeating hotel statements with concise handpicked stays line
+          if (Array.isArray(parsed.inclusions)) {
+            const hasOldHotelStatements = parsed.inclusions.some((inc: string) => 
+              inc.toLowerCase().includes('accommodation at') || 
+              inc.toLowerCase().includes('houseboat cruise at') ||
+              inc.toLowerCase().includes('accommodation on double sharing')
+            );
+            if (hasOldHotelStatements) {
+              const filtered = parsed.inclusions.filter((inc: string) => 
+                !inc.toLowerCase().includes('accommodation at') && 
+                !inc.toLowerCase().includes('houseboat cruise at') &&
+                !inc.toLowerCase().includes('accommodation on double sharing') &&
+                !inc.toLowerCase().includes('handpicked stays across')
+              );
+              parsed.inclusions = [
+                'Handpicked stays across premium hill resorts, a private beachfront property, and an exclusive Alleppey backwater houseboat.',
+                ...filtered
+              ];
+            }
           }
 
           setTrip(parsed);
@@ -691,17 +713,57 @@ export function PlannerClient({ initialTab = 'whatsapp-leads' }: PlannerClientPr
     }
   };
 
+  const isAdvancePaidInPreview = Boolean(
+    trip.advancePaid &&
+    trip.advancePaid !== '₹ 0/-' &&
+    trip.advancePaid !== '₹ 0.00' &&
+    trip.advancePaid !== '₹ 0' &&
+    trip.advancePaid.trim() !== ''
+  );
+
+  const handleToggleAdvancePaidInPreview = () => {
+    if (isAdvancePaidInPreview) {
+      setTrip((prev) => ({
+        ...prev,
+        advancePaid: '₹ 0.00',
+        balancePayable: prev.totalPackageCost || '₹ 0.00',
+      }));
+    } else {
+      const cleaned = String(trip.totalPackageCost || '').replace(/[₹,\s]/g, '').trim();
+      const match = cleaned.match(/\d+(\.\d+)?/);
+      const total = match ? parseFloat(match[0]) : 0;
+      const advPct = typeof trip.advancePercentage === 'number' && trip.advancePercentage > 0 ? trip.advancePercentage : 40;
+      const advAmount = total > 0 ? Math.round(total * (advPct / 100)) : 25000;
+      const balAmount = Math.max(0, total - advAmount);
+      setTrip((prev) => ({
+        ...prev,
+        advancePaid: `₹ ${advAmount.toLocaleString('en-IN')}.00`,
+        balancePayable: `₹ ${balAmount.toLocaleString('en-IN')}.00`,
+        bookingStatus: 'Confirmed',
+      }));
+    }
+  };
+
   // WhatsApp formatted string generator
   const generateWhatsAppMessage = () => {
+    const isConfirmed = (trip.bookingStatus || 'Confirmed') === 'Confirmed';
+    const hasAdvance = Boolean(
+      trip.advancePaid &&
+      trip.advancePaid !== '₹ 0/-' &&
+      trip.advancePaid !== '₹ 0.00' &&
+      trip.advancePaid !== '₹ 0' &&
+      trip.advancePaid.trim() !== ''
+    );
     const selectedActivitiesCount = trip.days.reduce(
       (sum, d) => sum + d.activities.filter((a) => a.isSelected).length, 
       0
     );
 
     return `🌴 *TRAVEL CARE TOURS PVT LTD* 🌴
-*Official Holiday Itinerary & Voucher*
+*${isConfirmed ? 'Official Holiday Itinerary & Confirmed Booking Voucher' : 'Official Holiday Itinerary & Quotation Voucher'}*
 ---------------------------------------
 📋 *Voucher No:* ${trip.voucherNumber}
+📌 *Booking Status:* ${isConfirmed ? '✅ CONFIRMED' : '⏳ UNDER REVIEW (Proposed)'}
 👤 *Guest:* ${trip.guestName} (${trip.adultsCount} Adults ${trip.childrenCount > 0 ? `+ ${trip.childrenCount} Child` : ''})
 🚗 *Vehicle:* ${trip.vehicleType}
 🗓️ *Duration:* ${trip.durationDays} Days / ${trip.durationNights} Nights
@@ -714,9 +776,13 @@ ${trip.accommodations.map((a) => `• ${a.destination}: ${a.hotelName} (${a.nigh
 ${trip.days.map((d) => `*Day ${d.dayNumber} (${d.destination}):* ${d.activities.filter(a => a.isSelected).map(a => a.title).join(', ') || 'Scenic Drive / Leisure'}`).join('\n')}
 
 💰 *Total Package Value:* ${trip.totalPackageCost}
-💳 *Advance:* ${trip.advancePaid || 'Paid'} | *Balance:* ${trip.balancePayable || 'On arrival'}
+💳 *Payment Status:* ${
+      isConfirmed || hasAdvance
+        ? `✅ Advance Paid: ${trip.advancePaid || 'Verified'} | *Balance on Arrival:* ${trip.balancePayable || 'On arrival'}`
+        : `Advance Payable: ${trip.advancePaid || 'Payable upon confirmation'} | *Balance:* ${trip.balancePayable || 'On arrival'}`
+    }
 
-📞 *24/7 Operations Desk:* +91 91435 43444
+📞 *24/7 Operations Desk:* +91 91435 43666
 🌐 *Travel Care Tours Pvt Ltd*, Thrikkakara, Ernakulam, Kerala`;
   };
 
@@ -772,6 +838,7 @@ ${trip.days.map((d) => `*Day ${d.dayNumber} (${d.destination}):* ${d.activities.
             trip={trip}
             onUpdateTrip={handleUpdateTrip}
             catalog={catalog}
+            onUpdateCatalog={handleUpdateCatalog}
             onNavigateToPreview={() => setCurrentTab('preview')}
           />
         )}
@@ -921,6 +988,53 @@ ${trip.days.map((d) => `*Day ${d.dayNumber} (${d.destination}):* ${d.activities.
                   </button>
                 </div>
 
+                {/* Center / Quick Status & Advance Toggles */}
+                <div className="flex items-center gap-2">
+                  {/* Booking Status Buttons */}
+                  <div className="flex items-center p-0.5 bg-slate-100 rounded-xl border border-slate-200">
+                    <button
+                      type="button"
+                      onClick={() => setTrip((prev) => ({ ...prev, bookingStatus: 'Under Review' }))}
+                      className={`px-2.5 py-1 text-xs font-bold rounded-lg transition-all flex items-center gap-1 cursor-pointer ${
+                        (trip.bookingStatus || 'Confirmed') === 'Under Review'
+                          ? 'bg-amber-500 text-amber-950 font-black shadow-2xs'
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                      title="Set Booking Status to Under Review"
+                    >
+                      <span>⏳ Under Review</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setTrip((prev) => ({ ...prev, bookingStatus: 'Confirmed' }))}
+                      className={`px-2.5 py-1 text-xs font-bold rounded-lg transition-all flex items-center gap-1 cursor-pointer ${
+                        (trip.bookingStatus || 'Confirmed') === 'Confirmed'
+                          ? 'bg-emerald-600 text-white font-black shadow-2xs'
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                      title="Set Booking Status to Confirmed"
+                    >
+                      <Check className="w-3.5 h-3.5 stroke-[2.5]" />
+                      <span>Confirmed</span>
+                    </button>
+                  </div>
+
+                  {/* Advance Paid Button */}
+                  <button
+                    type="button"
+                    onClick={handleToggleAdvancePaidInPreview}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-xl border transition-all cursor-pointer shadow-2xs ${
+                      isAdvancePaidInPreview
+                        ? 'bg-emerald-100 text-emerald-950 border-emerald-300 font-black'
+                        : 'bg-white text-slate-700 hover:bg-slate-50 border-slate-300'
+                    }`}
+                    title={isAdvancePaidInPreview ? "Advance is marked as paid. Click to reset." : "Click to mark advance as paid & confirm booking"}
+                  >
+                    <CreditCard className={`w-3.5 h-3.5 ${isAdvancePaidInPreview ? 'text-emerald-700' : 'text-slate-500'}`} />
+                    <span>{isAdvancePaidInPreview ? `✓ Paid (${trip.advancePaid})` : 'Advance Paid'}</span>
+                  </button>
+                </div>
+
                 {/* Right Side (Action Controls): Save, Print, Share, Download PDF */}
                 <div className="flex items-center gap-2 lg:gap-2.5">
                   {/* Save to Sheet */}
@@ -1066,6 +1180,47 @@ ${trip.days.map((d) => `*Day ${d.dayNumber} (${d.destination}):* ${d.activities.
                     title={previewSaveStatus ? `Sheet: ${previewSaveStatus}` : "Save to Google Sheet"}
                   >
                     <Database className={`w-3.5 h-3.5 text-emerald-700 ${isSavingSheet ? 'animate-pulse' : ''}`} />
+                  </button>
+                </div>
+
+                {/* Mobile Quick Status & Advance Row */}
+                <div className="flex items-center justify-between gap-1.5 pt-1 border-t border-slate-100 w-full">
+                  <div className="flex items-center p-0.5 bg-slate-100 rounded-lg border border-slate-200 text-xs">
+                    <button
+                      type="button"
+                      onClick={() => setTrip((prev) => ({ ...prev, bookingStatus: 'Under Review' }))}
+                      className={`px-2 py-1 text-[11px] font-bold rounded-md transition-all ${
+                        (trip.bookingStatus || 'Confirmed') === 'Under Review'
+                          ? 'bg-amber-500 text-amber-950 font-black shadow-2xs'
+                          : 'text-slate-600'
+                      }`}
+                    >
+                      ⏳ Under Review
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setTrip((prev) => ({ ...prev, bookingStatus: 'Confirmed' }))}
+                      className={`px-2 py-1 text-[11px] font-bold rounded-md transition-all ${
+                        (trip.bookingStatus || 'Confirmed') === 'Confirmed'
+                          ? 'bg-emerald-600 text-white font-black shadow-2xs'
+                          : 'text-slate-600'
+                      }`}
+                    >
+                      ✓ Confirmed
+                    </button>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleToggleAdvancePaidInPreview}
+                    className={`flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold rounded-lg border transition-all ${
+                      isAdvancePaidInPreview
+                        ? 'bg-emerald-100 text-emerald-950 border-emerald-300 font-black'
+                        : 'bg-white text-slate-700 border-slate-300'
+                    }`}
+                  >
+                    <CreditCard className={`w-3 h-3 ${isAdvancePaidInPreview ? 'text-emerald-700' : 'text-slate-500'}`} />
+                    <span>{isAdvancePaidInPreview ? '✓ Paid' : 'Advance Paid'}</span>
                   </button>
                 </div>
 
